@@ -9,8 +9,8 @@ const port = 3000;
 // Configure AWS
 AWS.config.update({
   region: "us-east-1", // Replace with your region
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  accessKeyId: process.env.YOUR_AWS_ACCESS_KEY_ID,
+  secretAccessKey: process.env.YOUR_AWS_SECRET_ACCESS_KEY,
 });
 
 const s3 = new AWS.S3();
@@ -34,7 +34,7 @@ app.post("/upload-selfie", async (req, res) => {
   //const fileName = `image-${Date.now()}.jpg`;
   const fileName = `selfie.jpg`;
   const params = {
-    Bucket: process.env.AWS_BUCKET_NAME,
+    Bucket: process.env.YOUR_S3_BUCKET_NAME,
     Key: fileName,
     Body: buffer,
     ContentType: "image/jpg",
@@ -233,6 +233,56 @@ app.post("/compare-face", async (req, res) => {
   } catch (error) {
     console.error("Error:", error);
     res.status(500).send("An error occurred while comparing the images.");
+  }
+});
+
+app.post("/detect-face", async (req, res) => {
+  const { imageUrl } = req.body;
+
+  if (!imageUrl) {
+    return res.status(400).send("No image URL provided.");
+  }
+
+  // Extract the bucket name and key from the imageUrl
+  const bucketName = process.env.AWS_BUCKET_NAME;
+
+  const key = imageUrl.split("/").pop(); // Fixing the key extraction
+
+  if (!key) {
+    return res.status(400).send("Invalid image URL provided.");
+  }
+
+  const params = {
+    Image: {
+      S3Object: {
+        Bucket: bucketName,
+        Name: key,
+      },
+    },
+    Attributes: ["ALL"], // Return all facial attributes
+  };
+
+  try {
+    // Detect faces using AWS Rekognition
+    const rekognitionData = await rekognition.detectFaces(params).promise();
+
+    if (rekognitionData.FaceDetails && rekognitionData.FaceDetails.length > 0) {
+      // Face(s) detected
+      res.json({
+        faceDetected: true,
+        message: "Face detected successfully.",
+        details: rekognitionData.FaceDetails,
+      });
+    } else {
+      // No faces detected
+      res.json({
+        faceDetected: false,
+        message: "No face detected in the image.",
+      });
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).send("An error occurred while detecting faces.");
   }
 });
 
