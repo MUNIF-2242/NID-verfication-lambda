@@ -12,7 +12,7 @@ AWS.config.update({
   accessKeyId: process.env.YOUR_AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.YOUR_AWS_SECRET_ACCESS_KEY,
 });
-
+const axios = require("axios");
 const s3 = new AWS.S3();
 const rekognition = new AWS.Rekognition();
 const textract = new AWS.Textract();
@@ -69,7 +69,7 @@ app.post("/upload-nid", async (req, res) => {
   //const fileName = `image-${Date.now()}.jpg`;
   const fileName = `nid.jpg`;
   const params = {
-    Bucket: process.env.AWS_BUCKET_NAME,
+    Bucket: process.env.YOUR_S3_BUCKET_NAME,
     Key: fileName,
     Body: buffer,
     ContentType: "image/jpg",
@@ -107,7 +107,7 @@ app.post("/detect-text", async (req, res) => {
   const params = {
     Document: {
       S3Object: {
-        Bucket: process.env.AWS_BUCKET_NAME,
+        Bucket: process.env.YOUR_S3_BUCKET_NAME,
         Name: fileName,
       },
     },
@@ -203,13 +203,13 @@ app.post("/compare-face", async (req, res) => {
   const params = {
     SourceImage: {
       S3Object: {
-        Bucket: process.env.AWS_BUCKET_NAME,
+        Bucket: process.env.YOUR_S3_BUCKET_NAME,
         Name: selfieUrl.split("/").pop(), // Extract file name from URL
       },
     },
     TargetImage: {
       S3Object: {
-        Bucket: process.env.AWS_BUCKET_NAME,
+        Bucket: process.env.YOUR_S3_BUCKET_NAME,
         Name: nidUrl.split("/").pop(), // Extract file name from URL
       },
     },
@@ -244,7 +244,7 @@ app.post("/detect-face", async (req, res) => {
   }
 
   // Extract the bucket name and key from the imageUrl
-  const bucketName = process.env.AWS_BUCKET_NAME;
+  const bucketName = process.env.YOUR_S3_BUCKET_NAME;
 
   const key = imageUrl.split("/").pop(); // Fixing the key extraction
 
@@ -283,6 +283,77 @@ app.post("/detect-face", async (req, res) => {
   } catch (error) {
     console.error("Error:", error);
     res.status(500).send("An error occurred while detecting faces.");
+  }
+});
+
+app.post("/porichoy-basic", async (req, res) => {
+  const convertDateFormat = (dateString) => {
+    // Define the month abbreviations
+    const months = {
+      Jan: "01",
+      Feb: "02",
+      Mar: "03",
+      Apr: "04",
+      May: "05",
+      Jun: "06",
+      Jul: "07",
+      Aug: "08",
+      Sep: "09",
+      Oct: "10",
+      Nov: "11",
+      Dec: "12",
+    };
+
+    // Split the input date string
+    const [day, monthAbbr, year] = dateString.split(" ");
+
+    // Convert the month abbreviation to month number
+    const month = months[monthAbbr];
+
+    // Return the date in YYYY-MM-DD format
+    return `${year}-${month}-${day.padStart(2, "0")}`;
+  };
+
+  const { name, dob, nid } = req.body;
+
+  try {
+    const requestData = {
+      national_id: nid,
+      person_dob: convertDateFormat(dob),
+      person_fullname: name,
+    };
+
+    console.log("Transformed data for....", requestData);
+
+    // Call /api/v2/verifications/basic-nid with the transformed data
+    try {
+      const verificationResponse = await axios.post(
+        "https://api.porichoybd.com/api/v2/verifications/basic-nid",
+        requestData,
+        {
+          headers: {
+            "x-api-key": process.env.YOUR_PORICHOY_API_KEY, // Set your API key here
+          },
+        }
+      );
+
+      // Send the response from the verification API
+      res.json(verificationResponse.data);
+    } catch (verificationError) {
+      console.error(
+        "Error occurred while calling verification API:",
+        verificationError
+      );
+      res
+        .status(500)
+        .send("An error occurred while calling the verification API.");
+    }
+  } catch (detectTextError) {
+    console.error(
+      "Error occurred while calling /detect-text:",
+      detectTextError
+    );
+    res.status(500).send("An error occurred while analyzing the document.");
   }
 });
 
