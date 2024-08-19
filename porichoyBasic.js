@@ -3,6 +3,8 @@ const axios = require("axios");
 exports.handler = async (event) => {
   // Define the convertDateFormat function
   const convertDateFormat = (dateString) => {
+    if (!dateString) return ""; // Handle undefined or null dateString
+
     const months = {
       Jan: "01",
       Feb: "02",
@@ -23,18 +25,32 @@ exports.handler = async (event) => {
     return `${year}-${month}-${day.padStart(2, "0")}`;
   };
 
-  // Extract request data from the event object
-  const { name, dob, nid } = JSON.parse(event.body);
-
-  const requestData = {
-    national_id: nid,
-    person_dob: convertDateFormat(dob),
-    person_fullname: name,
-  };
-
-  console.log("Transformed data for....", requestData);
-
   try {
+    // Extract request data from the event object
+    const { name, dob, nid } = JSON.parse(event.body);
+
+    // Validate input data
+    if (!name || !dob || !nid) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({
+          message: "Missing required fields: name, dob, or nid.",
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      };
+    }
+
+    // Transform the data
+    const requestData = {
+      national_id: nid,
+      person_dob: convertDateFormat(dob),
+      person_fullname: name,
+    };
+
+    console.log("Transformed data for verification:", requestData);
+
     // Call the verification API
     const verificationResponse = await axios.post(
       "https://api.porichoybd.com/api/v2/verifications/basic-nid",
