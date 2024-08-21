@@ -1,7 +1,6 @@
 const express = require("express");
 const AWS = require("aws-sdk");
 const { Buffer } = require("buffer");
-const { axios } = require("axios");
 require("dotenv").config(); // Ensure environment variables are loaded
 
 const app = express();
@@ -467,48 +466,6 @@ app.post("/porichoy-basic", async (req, res) => {
   }
 });
 
-app.post("/porichoy-birth", async (req, res) => {
-  const { birthRegistrationNumber, dateOfBirth } = req.body;
-
-  try {
-    const requestData = {
-      birthRegistrationNumber,
-      dateOfBirth,
-    };
-
-    console.log("Transformed data for....", requestData);
-
-    // Call /api/v2/verifications/basic-nid with the transformed data
-    try {
-      const verificationResponse = await axios.post(
-        "https://api.porichoybd.com/api/v1/verifications/autofill",
-        requestData,
-        {
-          headers: {
-            "x-api-key": process.env.YOUR_PORICHOY_API_KEY, // Set your API key here
-          },
-        }
-      );
-
-      // Send the response from the verification API
-      res.json(verificationResponse.data);
-    } catch (verificationError) {
-      console.error(
-        "Error occurred while calling verification API:",
-        verificationError
-      );
-      res
-        .status(500)
-        .send("An error occurred while calling the verification API.");
-    }
-  } catch (detectTextError) {
-    console.error(
-      "Error occurred while calling /detect-text:",
-      detectTextError
-    );
-    res.status(500).send("An error occurred while analyzing the document.");
-  }
-});
 // Endpoint to upload passport
 app.post("/upload-passport", async (req, res) => {
   const { image } = req.body;
