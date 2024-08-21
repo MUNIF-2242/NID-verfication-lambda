@@ -14,6 +14,8 @@ AWS.config.update({
   secretAccessKey: process.env.YOUR_AWS_SECRET_ACCESS_KEY,
 });
 const textract = new AWS.Textract();
+const s3 = new AWS.S3();
+const rekognition = new AWS.Rekognition();
 
 app.use(express.json({ limit: "50mb" }));
 
@@ -79,6 +81,8 @@ app.post("/detect-birthno", async (req, res) => {
 
     // Filter blocks to get lines of text
     const lineBlocks = jsonData.filter((block) => block.BlockType === "LINE");
+
+    console.log(lineBlocks);
 
     // Find the line that contains "Birth Registration No:"
     const birthRegNoLine = lineBlocks.find((lineBlock) =>
