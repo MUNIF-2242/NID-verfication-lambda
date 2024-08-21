@@ -1,17 +1,17 @@
 const AWS = require("aws-sdk");
-
 const textract = new AWS.Textract();
 
 exports.handler = async (event) => {
-  console.log("Lambda function was invoked.");
+  console.log("Lambda function was triggered.");
 
-  const { fileName } = JSON.parse(event.body);
+  const body = JSON.parse(event.body);
+  const { fileName } = body;
 
   if (!fileName) {
     console.log("No fileName provided.");
     return {
       statusCode: 400,
-      body: JSON.stringify("No file name provided."),
+      body: JSON.stringify({ message: "No file name provided." }),
     };
   }
 
@@ -34,35 +34,68 @@ exports.handler = async (event) => {
     const lineBlocks = jsonData.filter((block) => block.BlockType === "LINE");
 
     // Find the line that contains "Birth Registration No:"
-    const relevantLine = lineBlocks.find((lineBlock) =>
+    const birthRegNoLine = lineBlocks.find((lineBlock) =>
       lineBlock.Text.includes("Birth Registration No:")
+    );
+
+    // Find the line that contains "Date of Birth:"
+    const dobLine = lineBlocks.find((lineBlock) =>
+      lineBlock.Text.includes("Date of Birth:")
     );
 
     // Define a regular expression to extract numbers
     const numberRegex = /\d+/g;
 
+    // Define a regular expression to extract date in the format dd-mm-yyyy or similar
+    const dateRegex = /(\d{2})[-\/](\d{2})[-\/](\d{4})/;
+
     // Extract the birth registration number
-    const birthRegNo = relevantLine
-      ? relevantLine.Text.match(numberRegex).join("")
+    const birthRegNo = birthRegNoLine
+      ? birthRegNoLine.Text.match(numberRegex).join("")
       : null;
 
-    if (birthRegNo) {
-      console.log("Extracted data:", { data: { birthRegNo } });
+    // Extract the date of birth and format it to YYYY-MM-DD
+    const dob = dobLine
+      ? dobLine.Text.match(dateRegex)
+        ? formatDateToISO(dobLine.Text.match(dateRegex))
+        : null
+      : null;
+
+    if (birthRegNo || dob) {
+      console.log("Extracted data:", {
+        birthRegistrationNumber: birthRegNo,
+        dateOfBirth: dob,
+      });
       return {
         statusCode: 200,
-        body: JSON.stringify({ data: { birthRegNo } }),
+        body: JSON.stringify({
+          data: {
+            birthRegistrationNumber: birthRegNo,
+            dateOfBirth: dob,
+          },
+        }),
       };
     } else {
       return {
         statusCode: 404,
-        body: JSON.stringify("Birth Registration Number not found."),
+        body: JSON.stringify({
+          message: "Birth Registration Number or Date of Birth not found.",
+        }),
       };
     }
   } catch (error) {
     console.error("Error occurred while detecting text:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify("An error occurred while detecting text."),
+      body: JSON.stringify({
+        message: "An error occurred while detecting text.",
+      }),
     };
   }
 };
+
+// Function to format date to YYYY-MM-DD
+function formatDateToISO(dateMatchArray) {
+  const [_, day, month, year] = dateMatchArray;
+  return `${year}-${month}-${day}`;
+}
