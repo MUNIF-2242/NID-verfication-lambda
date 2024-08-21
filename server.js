@@ -8,18 +8,102 @@ const port = 3000;
 
 // Configure AWS
 AWS.config.update({
-  region: "us-east-1", // Replace with your region
+  region: "us-east-1",
   accessKeyId: process.env.YOUR_AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.YOUR_AWS_SECRET_ACCESS_KEY,
 });
-const axios = require("axios");
-const s3 = new AWS.S3();
-const rekognition = new AWS.Rekognition();
 const textract = new AWS.Textract();
 
-app.use(express.json({ limit: "50mb" })); // Increase limit to handle large image data
+app.use(express.json({ limit: "50mb" }));
 
-// Endpoint to handle image upload
+app.post("/upload-birth", async (req, res) => {
+  const { image } = req.body;
+
+  if (!image) {
+    return res.status(400).send("No image data provided.");
+  }
+
+  // Extract Base64 data from image string
+  const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
+  const buffer = Buffer.from(base64Data, "base64");
+
+  //const fileName = `image-${Date.now()}.jpg`;
+  const fileName = `birth.jpg`;
+  const params = {
+    Bucket: process.env.YOUR_S3_BUCKET_NAME,
+    Key: fileName,
+    Body: buffer,
+    ContentType: "image/jpg",
+  };
+
+  try {
+    // Upload image to S3
+    const s3Data = await s3.upload(params).promise();
+    const imageUrl = s3Data.Location;
+
+    res.json({
+      imageUrl,
+      fileName,
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).send("An error occurred while uploading the image.");
+  }
+});
+
+app.post("/detect-birthno", async (req, res) => {
+  console.log("Endpoint /detect-text was hit.");
+
+  const { fileName } = req.body;
+
+  if (!fileName) {
+    console.log("No fileName provided.");
+    return res.status(400).send("No file name provided.");
+  }
+
+  const params = {
+    Document: {
+      S3Object: {
+        Bucket: process.env.YOUR_S3_BUCKET_NAME,
+        Name: fileName,
+      },
+    },
+  };
+
+  try {
+    console.log("Calling Textract to detect text...");
+
+    const textractData = await textract.detectDocumentText(params).promise();
+    const jsonData = textractData.Blocks;
+
+    // Filter blocks to get lines of text
+    const lineBlocks = jsonData.filter((block) => block.BlockType === "LINE");
+
+    // Find the line that contains "Birth Registration No:"
+    const relevantLine = lineBlocks.find((lineBlock) =>
+      lineBlock.Text.includes("Birth Registration No:")
+    );
+
+    // Define a regular expression to extract numbers
+    const numberRegex = /\d+/g;
+
+    // Extract the birth registration number
+    const birthRegNo = relevantLine
+      ? relevantLine.Text.match(numberRegex).join("")
+      : null;
+
+    if (birthRegNo) {
+      console.log("Extracted data:", { data: { birthRegNo } });
+      res.json({ data: { birthRegNo } });
+    } else {
+      res.status(404).send("Birth Registration Number not found.");
+    }
+  } catch (error) {
+    console.error("Error occurred while detecting text:", error);
+    res.status(500).send("An error occurred while detecting text.");
+  }
+});
+
 app.post("/upload-selfie", async (req, res) => {
   const { image } = req.body;
 
