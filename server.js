@@ -1,7 +1,8 @@
 const express = require("express");
 const AWS = require("aws-sdk");
 const { Buffer } = require("buffer");
-const { axios } = require("axios");
+const axios = require("axios");
+
 require("dotenv").config(); // Ensure environment variables are loaded
 
 const app = express();
@@ -82,7 +83,7 @@ app.post("/detect-birthno", async (req, res) => {
     // Filter blocks to get lines of text
     const lineBlocks = jsonData.filter((block) => block.BlockType === "LINE");
 
-    console.log(lineBlocks);
+    //console.log(lineBlocks);
 
     // Find the line that contains "Birth Registration No:"
     const birthRegNoLine = lineBlocks.find((lineBlock) =>
