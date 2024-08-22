@@ -129,6 +129,95 @@ app.post("/detect-birthno", async (req, res) => {
   }
 });
 
+app.post("/detect-text", async (req, res) => {
+  console.log("Endpoint /detect-text was hit.");
+
+  const { fileName } = req.body;
+
+  if (!fileName) {
+    console.log("No fileName provided.");
+    return res.status(400).send("No file name provided.");
+  }
+
+  const params = {
+    Document: {
+      S3Object: {
+        Bucket: process.env.YOUR_S3_BUCKET_NAME,
+        Name: fileName,
+      },
+    },
+  };
+
+  try {
+    console.log("Calling Textract to detect text...");
+
+    const textractData = await textract.detectDocumentText(params).promise();
+    const jsonData = textractData.Blocks;
+
+    // Filter blocks to get lines of text
+    const lineBlocks = jsonData.filter((block) => block.BlockType === "LINE");
+
+    console.log(lineBlocks);
+
+    const dobLine = lineBlocks.find((lineBlock) =>
+      lineBlock.Text.includes("Date of Birth")
+    );
+
+    let dob;
+    if (dobLine) {
+      const dobMatch = dobLine.Text.match(/\d{2} \w{3} \d{4}/);
+      if (dobMatch) {
+        dob = dobMatch[0];
+        console.log(dob); // Output: 03 Oct 1995
+      } else {
+        console.log("Date of Birth not found");
+      }
+    } else {
+      console.log("DOB line not found");
+    }
+
+    //Find NID Name
+    let name = null; // Variable to store the name value
+    let nid = null; // Variable to store the NID value
+
+    let nameBlockIndex = -1;
+    let nidBlockIndex = -1;
+
+    // Find the index of the block that includes the text "Name"
+    lineBlocks.forEach((block, index) => {
+      if (block.Text.includes("Name")) {
+        nameBlockIndex = index;
+      }
+      if (block.Text.includes("NID No")) {
+        nidBlockIndex = index;
+      }
+    });
+
+    // Set the name value if the "Name" block is found and there's a next block
+    if (nameBlockIndex !== -1 && nameBlockIndex < lineBlocks.length - 1) {
+      const nextBlock = lineBlocks[nameBlockIndex + 1];
+      name = nextBlock.Text;
+      console.log("Next Block Text (Name):", name);
+    }
+
+    // Set the nid value if the "NID No." block is found and there's a next block
+    if (nidBlockIndex !== -1 && nidBlockIndex < lineBlocks.length - 1) {
+      const nextBlock = lineBlocks[nidBlockIndex + 1];
+      nid = nextBlock.Text;
+      console.log("Next Block Text (NID No.):", nid);
+    }
+
+    res.json({
+      dob,
+      name,
+      nid,
+    });
+  } catch (error) {
+    console.error("Error occurred while detecting text:", error);
+    res.status(500).send("An error occurred while detecting text.");
+  }
+});
+
 // Function to format date to YYYY-MM-DD
 function formatDateToISO(dateMatchArray) {
   const [_, day, month, year] = dateMatchArray;
@@ -202,108 +291,6 @@ app.post("/upload-nid", async (req, res) => {
   } catch (error) {
     console.error("Error:", error);
     res.status(500).send("An error occurred while uploading the image.");
-  }
-});
-
-// Detect Text API with FORMS and TABLES extraction
-app.post("/detect-text", async (req, res) => {
-  console.log("Endpoint /detect-text was hit."); // Log to verify endpoint is hit
-
-  const { fileName } = req.body;
-
-  // Log the received fileName
-  console.log("Received fileName:", fileName);
-
-  if (!fileName) {
-    console.log("No fileName provided."); // Log when no fileName is provided
-    return res.status(400).send("No file name provided.");
-  }
-
-  const params = {
-    Document: {
-      S3Object: {
-        Bucket: process.env.YOUR_S3_BUCKET_NAME,
-        Name: fileName,
-      },
-    },
-    FeatureTypes: ["FORMS"], // Specify that we want to extract forms and tables
-  };
-
-  try {
-    console.log("Calling Textract to analyze document...");
-    let name, dob, nid;
-    // Call Textract to analyze the document for forms and tables
-    const textractData = await textract.analyzeDocument(params).promise();
-
-    // Process or display the extracted text as needed
-
-    const jsonData = textractData.Blocks;
-
-    const lineBlocks = jsonData.filter((block) => block.BlockType === "LINE");
-
-    // Check if lineBlocks has elements before trying to access blocks
-    if (lineBlocks.length > 0) {
-      // Log all lineBlocks for debugging
-      //console.log("lineBlocks...." + JSON.stringify(lineBlocks));
-
-      // Get the last element in lineBlocks
-      const lastLineBlock = lineBlocks[lineBlocks.length - 1];
-      nid = lastLineBlock.Text;
-
-      if (lineBlocks.length >= 3) {
-        const blockBeforeLastTwo = lineBlocks[lineBlocks.length - 4];
-        const dobText = blockBeforeLastTwo.Text;
-
-        // Extract date part from the text
-        const dobParts = dobText.split(" ");
-
-        // Assuming the date part starts from the last three words
-        if (dobParts.length >= 3) {
-          dob = `${dobParts[dobParts.length - 3]} ${
-            dobParts[dobParts.length - 2]
-          } ${dobParts[dobParts.length - 1]}`;
-        } else {
-          // Handle cases where the expected date format is not found
-          console.log("Date format is not as expected.");
-          dob = dobText; // Fallback to the original text if extraction fails
-        }
-
-        console.log("Extracted Date of Birth: " + JSON.stringify(dob));
-      } else {
-        console.log(
-          "Not enough blocks to find a block two positions before the last one."
-        );
-      }
-
-      // Find the index of the block with Text === "Name"
-      const nameBlockIndex = lineBlocks.findIndex(
-        (block) => block.Text === "Name"
-      );
-
-      if (nameBlockIndex !== -1 && nameBlockIndex < lineBlocks.length - 1) {
-        // Get the block after "Name"
-        const nextBlock = lineBlocks[nameBlockIndex + 1];
-        name = nextBlock.Text;
-      } else if (nameBlockIndex === -1) {
-        console.log("'Name' block not found.");
-      } else {
-        console.log("There is no block after the 'Name' block.");
-      }
-    } else {
-      console.log("No lineBlocks found.");
-    }
-
-    // console.log("lineBlocks...." + JSON.stringify(lineBlocks));
-
-    // Send the extracted data as the response
-    res.json({
-      name,
-      dob,
-      nid,
-    });
-  } catch (error) {
-    console.error("Error occurred while analyzing document:", error); // Log the error if something goes wrong
-    res.status(500).send("An error occurred while analyzing the document.");
   }
 });
 
