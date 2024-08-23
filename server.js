@@ -58,6 +58,12 @@ app.post("/upload-birth", async (req, res) => {
 app.post("/detect-birthno", async (req, res) => {
   console.log("Endpoint /detect-text was hit.");
 
+  // Function to format date to YYYY-MM-DD
+  function formatDateToISO(dateMatchArray) {
+    const [_, day, month, year] = dateMatchArray;
+    return `${year}-${month}-${day}`;
+  }
+
   const { fileName } = req.body;
 
   if (!fileName) {
@@ -157,31 +163,27 @@ app.post("/detect-text", async (req, res) => {
     // Filter blocks to get lines of text
     const lineBlocks = jsonData.filter((block) => block.BlockType === "LINE");
 
-    console.log(lineBlocks);
+    // Initialize variables and set default to null
+    let dob = null;
+    let name = null;
+    let nid = null;
 
+    // Find Date of Birth using a case-insensitive search
     const dobLine = lineBlocks.find((lineBlock) =>
       lineBlock.Text.includes("Date of Birth")
     );
 
-    let dob;
     if (dobLine) {
       const dobMatch = dobLine.Text.match(/\d{2} \w{3} \d{4}/);
       if (dobMatch) {
         dob = dobMatch[0];
-        console.log(dob); // Output: 03 Oct 1995
+        console.log("DOB:", dob);
       } else {
-        console.log("Date of Birth not found");
+        console.log("Date of Birth pattern not found");
       }
     } else {
       console.log("DOB line not found");
     }
-
-    //Find NID Name
-    let name = null; // Variable to store the name value
-    let nid = null; // Variable to store the NID value
-
-    let nameBlockIndex = -1;
-    let nidBlockIndex = -1;
 
     // Find the index of the block that includes the text "Name"
     lineBlocks.forEach((block, index) => {
@@ -207,22 +209,35 @@ app.post("/detect-text", async (req, res) => {
       console.log("Next Block Text (NID No.):", nid);
     }
 
+    // Fallback to null if any value is undefined
+    dob = dob !== undefined ? dob : null;
+    name = name !== undefined ? name : null;
+    nid = nid !== undefined ? nid : null;
+
+    // Determine success status
+    const success = dob !== null && name !== null && nid !== null;
+
+    if (!success) {
+      console.log("Failed to detect one or more fields.");
+    }
+
+    // Return the status and detected values
     res.json({
-      dob,
-      name,
-      nid,
+      status: success ? "success" : "fail",
+      nidData: {
+        dob,
+        name,
+        nid,
+      },
     });
   } catch (error) {
     console.error("Error occurred while detecting text:", error);
-    res.status(500).send("An error occurred while detecting text.");
+    res.status(500).json({
+      status: "error",
+      message: "An error occurred while detecting text.",
+    });
   }
 });
-
-// Function to format date to YYYY-MM-DD
-function formatDateToISO(dateMatchArray) {
-  const [_, day, month, year] = dateMatchArray;
-  return `${year}-${month}-${day}`;
-}
 
 app.post("/upload-selfie", async (req, res) => {
   const { image } = req.body;
@@ -539,6 +554,7 @@ app.post("/upload-passport", async (req, res) => {
 
 app.post("/analyze-passport", async (req, res) => {
   console.log("Endpoint /analyze-passport was hit.");
+
   const formatDate = (yyMMdd) => {
     const monthNames = [
       "Jan",
@@ -562,6 +578,7 @@ app.post("/analyze-passport", async (req, res) => {
     const fullYear = year >= 50 ? 1900 + year : 2000 + year;
     return `${day} ${monthNames[month]} ${fullYear}`;
   };
+
   const extractMRZFields = (mrz) => {
     return {
       passportNumber: mrz.substring(0, 9),
@@ -576,13 +593,16 @@ app.post("/analyze-passport", async (req, res) => {
     };
   };
 
-  // Function to get only required fields for response
   const getRequiredFields = (mrzFields) => {
     return {
-      passportNumber: mrzFields.passportNumber,
-      birthDate: formatDate(mrzFields.birthDate),
-      expirationDate: formatDate(mrzFields.expirationDate),
-      personalNumber: mrzFields.personalNumber.substring(0, 10),
+      passportNumber: mrzFields.passportNumber || null,
+      birthDate: mrzFields.birthDate ? formatDate(mrzFields.birthDate) : null,
+      expirationDate: mrzFields.expirationDate
+        ? formatDate(mrzFields.expirationDate)
+        : null,
+      personalNumber: mrzFields.personalNumber
+        ? mrzFields.personalNumber.substring(0, 10)
+        : null,
     };
   };
 
@@ -607,34 +627,31 @@ app.post("/analyze-passport", async (req, res) => {
 
     // Filter blocks to get lines of text
     const lineBlocks = jsonData.filter((block) => block.BlockType === "LINE");
-    //console.log(lineBlocks);
 
-    let name = null; // Variable to store the name value
-    const nameMrzLine = lineBlocks[lineBlocks.length - 2];
+    // Initialize variables and set defaults to null
+    let name = null;
+    const nameMrzLine =
+      lineBlocks.length > 1 ? lineBlocks[lineBlocks.length - 2] : null;
 
-    function extractNameFromMRZ(mrzLine) {
-      // Remove the "P<" at the start and replace "<" with " "
+    const extractNameFromMRZ = (mrzLine) => {
+      if (!mrzLine) return null;
       let cleanedLine = mrzLine.replace(/^P</, "").replace(/</g, " ").trim();
-
-      // Split the cleaned line into words based on spaces
       let nameParts = cleanedLine.split(/\s+/);
-
-      // Identify the last name and given names, ignoring the country code "BGD"
       let lastName = nameParts[0].replace(/^BGD/, ""); // Remove "BGD" from the last name if it exists
       let givenNames = nameParts.slice(1).join(""); // Join the rest as given names
+      return `${givenNames}${lastName}`.toUpperCase();
+    };
 
-      // Concatenate the given names and last name
-      let finalName = `${givenNames}${lastName}`;
-
-      return finalName.toUpperCase();
+    if (nameMrzLine) {
+      name = extractNameFromMRZ(nameMrzLine.Text) || null;
+      console.log("Name:", name);
+    } else {
+      console.log("Name MRZ line not found.");
     }
-    name = extractNameFromMRZ(nameMrzLine.Text);
-    // console.log("name :" + name);
 
-    const lastLineBlock = lineBlocks[lineBlocks.length - 1];
-
-    // Access the Text value and set it to a variable named mrzCodeText
-    const mrzCodeText = lastLineBlock.Text;
+    const lastLineBlock =
+      lineBlocks.length > 0 ? lineBlocks[lineBlocks.length - 1] : null;
+    const mrzCodeText = lastLineBlock ? lastLineBlock.Text : null;
 
     if (mrzCodeText) {
       const mrzFields = extractMRZFields(mrzCodeText);
@@ -642,8 +659,13 @@ app.post("/analyze-passport", async (req, res) => {
 
       responseData.name = name;
 
+      const success = Object.values(responseData).every(
+        (value) => value !== null
+      );
+
       res.json({
-        data: responseData,
+        status: success ? "success" : "fail",
+        passportData: responseData,
       });
     } else {
       res.status(404).send("MRZ code not found.");

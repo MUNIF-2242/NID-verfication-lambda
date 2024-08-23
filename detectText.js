@@ -2,20 +2,16 @@ const AWS = require("aws-sdk");
 const textract = new AWS.Textract();
 
 exports.handler = async (event) => {
-  console.log("Lambda function invoked for /detect-text");
+  console.log("Lambda function /detect-text was invoked.");
 
-  let response;
   const { fileName } = JSON.parse(event.body);
-
-  console.log("Received fileName:", fileName);
 
   if (!fileName) {
     console.log("No fileName provided.");
-    response = {
+    return {
       statusCode: 400,
-      body: JSON.stringify("No file name provided."),
+      body: JSON.stringify({ message: "No file name provided." }),
     };
-    return response;
   }
 
   const params = {
@@ -25,74 +21,98 @@ exports.handler = async (event) => {
         Name: fileName,
       },
     },
-    FeatureTypes: ["FORMS"],
   };
 
   try {
-    console.log("Calling Textract to analyze document...");
-    let name, dob, nid;
+    console.log("Calling Textract to detect text...");
 
-    const textractData = await textract.analyzeDocument(params).promise();
+    const textractData = await textract.detectDocumentText(params).promise();
     const jsonData = textractData.Blocks;
 
+    // Filter blocks to get lines of text
     const lineBlocks = jsonData.filter((block) => block.BlockType === "LINE");
 
-    if (lineBlocks.length > 0) {
-      const lastLineBlock = lineBlocks[lineBlocks.length - 1];
-      nid = lastLineBlock.Text;
+    // Initialize variables and set default to null
+    let dob = null;
+    let name = null;
+    let nid = null;
 
-      if (lineBlocks.length >= 3) {
-        const blockBeforeLastTwo = lineBlocks[lineBlocks.length - 4];
-        const dobText = blockBeforeLastTwo.Text;
-        const dobParts = dobText.split(" ");
+    // Find Date of Birth using a case-insensitive search
+    const dobLine = lineBlocks.find((lineBlock) =>
+      lineBlock.Text.includes("Date of Birth")
+    );
 
-        if (dobParts.length >= 3) {
-          dob = `${dobParts[dobParts.length - 3]} ${
-            dobParts[dobParts.length - 2]
-          } ${dobParts[dobParts.length - 1]}`;
-        } else {
-          console.log("Date format is not as expected.");
-          dob = dobText;
-        }
-
-        console.log("Extracted Date of Birth: " + JSON.stringify(dob));
+    if (dobLine) {
+      const dobMatch = dobLine.Text.match(/\d{2} \w{3} \d{4}/);
+      if (dobMatch) {
+        dob = dobMatch[0];
+        console.log("DOB:", dob);
       } else {
-        console.log(
-          "Not enough blocks to find a block two positions before the last one."
-        );
-      }
-
-      const nameBlockIndex = lineBlocks.findIndex(
-        (block) => block.Text === "Name"
-      );
-
-      if (nameBlockIndex !== -1 && nameBlockIndex < lineBlocks.length - 1) {
-        const nextBlock = lineBlocks[nameBlockIndex + 1];
-        name = nextBlock.Text;
-      } else if (nameBlockIndex === -1) {
-        console.log("'Name' block not found.");
-      } else {
-        console.log("There is no block after the 'Name' block.");
+        console.log("Date of Birth pattern not found");
       }
     } else {
-      console.log("No lineBlocks found.");
+      console.log("DOB line not found");
     }
 
-    response = {
+    // Find the index of the block that includes the text "Name" and "NID No"
+    let nameBlockIndex = -1;
+    let nidBlockIndex = -1;
+
+    lineBlocks.forEach((block, index) => {
+      if (block.Text.includes("Name")) {
+        nameBlockIndex = index;
+      }
+      if (block.Text.includes("NID No")) {
+        nidBlockIndex = index;
+      }
+    });
+
+    // Set the name value if the "Name" block is found and there's a next block
+    if (nameBlockIndex !== -1 && nameBlockIndex < lineBlocks.length - 1) {
+      const nextBlock = lineBlocks[nameBlockIndex + 1];
+      name = nextBlock.Text;
+      console.log("Next Block Text (Name):", name);
+    }
+
+    // Set the nid value if the "NID No." block is found and there's a next block
+    if (nidBlockIndex !== -1 && nidBlockIndex < lineBlocks.length - 1) {
+      const nextBlock = lineBlocks[nidBlockIndex + 1];
+      nid = nextBlock.Text;
+      console.log("Next Block Text (NID No.):", nid);
+    }
+
+    // Fallback to null if any value is undefined
+    dob = dob !== undefined ? dob : null;
+    name = name !== undefined ? name : null;
+    nid = nid !== undefined ? nid : null;
+
+    // Determine success status
+    const success = dob !== null && name !== null && nid !== null;
+
+    if (!success) {
+      console.log("Failed to detect one or more fields.");
+    }
+
+    // Return the status and detected values
+    return {
       statusCode: 200,
       body: JSON.stringify({
-        name,
-        dob,
-        nid,
+        status: success ? "success" : "fail",
+        nidData: {
+          dob,
+          name,
+          nid,
+        },
       }),
     };
   } catch (error) {
-    console.error("Error occurred while analyzing document:", error);
-    response = {
+    console.error("Error occurred while detecting text:", error);
+    return {
       statusCode: 500,
-      body: JSON.stringify("An error occurred while analyzing the document."),
+      body: JSON.stringify({
+        status: "error",
+        message: "An error occurred while detecting text.",
+      }),
     };
   }
-
-  return response;
 };
