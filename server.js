@@ -562,12 +562,11 @@ app.post("/analyze-passport", async (req, res) => {
     const fullYear = year >= 50 ? 1900 + year : 2000 + year;
     return `${day} ${monthNames[month]} ${fullYear}`;
   };
-
   const extractMRZFields = (mrz) => {
     return {
       passportNumber: mrz.substring(0, 9),
       passportNumberCheckDigit: parseInt(mrz[9]),
-      dateOfBirth: mrz.substring(13, 19),
+      birthDate: mrz.substring(13, 19),
       birthDateCheckDigit: parseInt(mrz[19]),
       expirationDate: mrz.substring(21, 27),
       expirationDateCheckDigit: parseInt(mrz[27]),
@@ -581,9 +580,9 @@ app.post("/analyze-passport", async (req, res) => {
   const getRequiredFields = (mrzFields) => {
     return {
       passportNumber: mrzFields.passportNumber,
-      dob: formatDate(mrzFields.dateOfBirth),
+      birthDate: formatDate(mrzFields.birthDate),
       expirationDate: formatDate(mrzFields.expirationDate),
-      nid: mrzFields.personalNumber.substring(0, 10),
+      personalNumber: mrzFields.personalNumber.substring(0, 10),
     };
   };
 
@@ -608,21 +607,30 @@ app.post("/analyze-passport", async (req, res) => {
 
     // Filter blocks to get lines of text
     const lineBlocks = jsonData.filter((block) => block.BlockType === "LINE");
+    //console.log(lineBlocks);
 
     let name = null; // Variable to store the name value
+    const nameMrzLine = lineBlocks[lineBlocks.length - 2];
 
-    let nameBlockIndex = -1;
+    function extractNameFromMRZ(mrzLine) {
+      // Remove the "P<" at the start and replace "<" with " "
+      let cleanedLine = mrzLine.replace(/^P</, "").replace(/</g, " ").trim();
 
-    // Find the index of the block that includes the text "Name"
-    lineBlocks.forEach((block, index) => {
-      if (block.Text.includes("Name")) {
-        nameBlockIndex = index;
-      }
-    });
-    if (nameBlockIndex !== -1 && nameBlockIndex < lineBlocks.length - 1) {
-      const nextBlock = lineBlocks[nameBlockIndex + 1];
-      name = nextBlock.Text;
+      // Split the cleaned line into words based on spaces
+      let nameParts = cleanedLine.split(/\s+/);
+
+      // Identify the last name and given names, ignoring the country code "BGD"
+      let lastName = nameParts[0].replace(/^BGD/, ""); // Remove "BGD" from the last name if it exists
+      let givenNames = nameParts.slice(1).join(""); // Join the rest as given names
+
+      // Concatenate the given names and last name
+      let finalName = `${givenNames}${lastName}`;
+
+      return finalName.toUpperCase();
     }
+    name = extractNameFromMRZ(nameMrzLine.Text);
+    // console.log("name :" + name);
+
     const lastLineBlock = lineBlocks[lineBlocks.length - 1];
 
     // Access the Text value and set it to a variable named mrzCodeText
