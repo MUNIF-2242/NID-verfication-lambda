@@ -20,6 +20,73 @@ const rekognition = new AWS.Rekognition();
 
 app.use(express.json({ limit: "50mb" }));
 
+app.post("/extract-cheque", async (req, res) => {
+  console.log("Endpoint /detect-bank was hit.");
+
+  const { fileName } = req.body;
+
+  if (!fileName) {
+    console.log("No fileName provided.");
+    return res.status(400).send("No file name provided.");
+  }
+
+  const params = {
+    Document: {
+      S3Object: {
+        Bucket: process.env.YOUR_S3_BUCKET_NAME,
+        Name: fileName,
+      },
+    },
+  };
+
+  removeNonNumeric = (text) => {
+    return text.replace(/\D/g, "");
+  };
+  try {
+    console.log("Calling Textract to detect text...");
+    // Initialize variables and set default to null
+    let routingNumber = null;
+    let accountNumber = null;
+
+    const textractData = await textract.detectDocumentText(params).promise();
+    const jsonData = textractData.Blocks;
+
+    // Filter blocks to get lines of text
+    const lineBlocks = jsonData.filter((block) => block.BlockType === "LINE");
+
+    const lastLineBlock =
+      lineBlocks.length > 0 ? lineBlocks[lineBlocks.length - 1] : null;
+
+    const lastlinechunks = lastLineBlock.Text.split(" ");
+    //console.log(lastlinechunks);
+
+    routingNumber = removeNonNumeric(lastlinechunks[1]);
+    accountNumber = removeNonNumeric(lastlinechunks[2]);
+
+    // Determine success status
+    const success = routingNumber !== null && accountNumber !== null;
+
+    if (!success) {
+      console.log("Failed to detect one or more fields.");
+    }
+
+    // Return the status and detected values
+    res.json({
+      status: success ? "success" : "fail",
+      chequeExtractData: {
+        routingNumber,
+        accountNumber,
+      },
+    });
+  } catch (error) {
+    console.error("Error occurred while detecting text:", error);
+    res.status(500).json({
+      status: "error",
+      message: "An error occurred while detecting text.",
+    });
+  }
+});
+
 app.post("/upload-birth", async (req, res) => {
   const { image } = req.body;
 
