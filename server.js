@@ -20,7 +20,7 @@ const rekognition = new AWS.Rekognition();
 
 app.use(express.json({ limit: "50mb" }));
 
-const BankData = require("./data/BankData");
+const BankData = require("./data/BankDataDhakaBank");
 
 app.post("/bank-details", async (req, res) => {
   console.log("Endpoint /bank-details was hit.");

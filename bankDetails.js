@@ -1,4 +1,4 @@
-const BankData = require("./data/BankData");
+const BankData = require("./data/BankDataDhakaBank");
 
 exports.handler = async (event) => {
   console.log("Lambda /bank-details invoked.");
