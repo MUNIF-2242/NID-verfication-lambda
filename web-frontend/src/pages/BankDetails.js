@@ -148,16 +148,9 @@ const BankDetails = () => {
         </button>
       </form>
 
-      {routingNumber && (
-        <div>
-          <h2>Routing Number:</h2>
-          <p>{routingNumber}</p>
-        </div>
-      )}
-
       {bankDetails && (
         <div>
-          <h3>Bank Details:</h3>
+          <h3>Bank Details</h3>
           <p>
             <strong>Bank Name:</strong> {bankDetails.bank.name}
           </p>
@@ -166,6 +159,10 @@ const BankDetails = () => {
           </p>
           <p>
             <strong>Branch Name:</strong> {bankDetails.branch.name}
+          </p>
+
+          <p>
+            <strong>Routing Number:</strong> {routingNumber}
           </p>
         </div>
       )}

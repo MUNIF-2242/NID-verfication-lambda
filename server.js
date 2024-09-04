@@ -76,27 +76,48 @@ app.get("/branches", (req, res) => {
     });
   }
 
-  // Find the district within the bank
-  const district = bank.districts.find((d) => d.districtCode === districtCode);
+  let branches = [];
 
-  if (!district) {
-    return res.status(404).json({
-      status: "error",
-      message: "District not found",
+  if (districtCode) {
+    // Find the district within the bank
+    const district = bank.districts.find(
+      (d) => d.districtCode === districtCode
+    );
+
+    if (!district) {
+      return res.status(404).json({
+        status: "error",
+        message: "District not found",
+      });
+    }
+
+    // Extract branches from the specified district
+    branches = district.branches.map((branch) => ({
+      name: branch.name,
+      branchCode: branch.branchCode,
+      routingNumber: branch.routingNumber,
+      districtCode: district.districtCode, // Add districtCode to each branch
+    }));
+  } else {
+    // Extract all branches from all districts within the bank
+    bank.districts.forEach((district) => {
+      branches = branches.concat(
+        district.branches.map((branch) => ({
+          name: branch.name,
+          branchCode: branch.branchCode,
+          routingNumber: branch.routingNumber,
+          districtCode: district.districtCode, // Add districtCode to each branch
+        }))
+      );
     });
   }
-
-  // Extract branches
-  const branches = district.branches.map((branch) => ({
-    name: branch.name,
-    branchCode: branch.branchCode,
-  }));
 
   return res.status(200).json({
     status: "success",
     data: branches,
   });
 });
+
 app.get("/routing-number", (req, res) => {
   const { bankCode, districtCode, branchCode } = req.query;
 
@@ -197,7 +218,7 @@ app.get("/get-bank-details", (req, res) => {
     });
   }
 });
-
+///
 app.post("/add-bank-data", (req, res) => {
   const {
     bankName,
@@ -224,7 +245,7 @@ app.post("/add-bank-data", (req, res) => {
     });
   }
 
-  // Check if the bank with the same name or code already exists
+  // Check if the bank with the same code or name already exists
   let existingBank = BankData.banks.find(
     (b) => b.bankCode === bankCode || b.name === bankName
   );
@@ -233,12 +254,13 @@ app.post("/add-bank-data", (req, res) => {
     if (existingBank.bankCode === bankCode) {
       return res.status(400).json({
         status: "error",
-        message: "Bank with this code already exists",
+        message: "A bank with this code already exists",
       });
-    } else if (existingBank.name === bankName) {
+    }
+    if (existingBank.name === bankName) {
       return res.status(400).json({
         status: "error",
-        message: "Bank with this name already exists",
+        message: "A bank with this name already exists",
       });
     }
   }
@@ -253,17 +275,21 @@ app.post("/add-bank-data", (req, res) => {
   if (existingRoutingNumber) {
     return res.status(400).json({
       status: "error",
-      message: "Branch with this routing number already exists",
+      message: "A branch with this routing number already exists",
     });
   }
 
-  // Create a new bank if it does not exist
-  let bank = {
-    name: bankName,
-    bankCode,
-    districts: [],
-  };
-  BankData.banks.push(bank);
+  // If bank doesn't exist, create it
+  let bank = existingBank;
+
+  if (!existingBank) {
+    bank = {
+      name: bankName,
+      bankCode,
+      districts: [],
+    };
+    BankData.banks.push(bank);
+  }
 
   // Check if the district exists within the bank
   let district = bank.districts.find((d) => d.districtCode === districtCode);
@@ -287,17 +313,18 @@ app.post("/add-bank-data", (req, res) => {
     if (existingBranch.branchCode === branchCode) {
       return res.status(400).json({
         status: "error",
-        message: "Branch with this code already exists",
+        message: "A branch with this code already exists in the same district",
       });
-    } else if (existingBranch.name === branchName) {
+    }
+    if (existingBranch.name === branchName) {
       return res.status(400).json({
         status: "error",
-        message: "Branch with this name already exists",
+        message: "A branch with this name already exists in the same district",
       });
     }
   }
 
-  // Add new branch to the district
+  // Add new branch to the district only after all checks
   const newBranch = {
     name: branchName,
     branchCode,
@@ -320,6 +347,7 @@ app.post("/add-bank-data", (req, res) => {
   });
 });
 
+///
 app.post("/add-district", (req, res) => {
   const {
     bankCode,
@@ -355,7 +383,7 @@ app.post("/add-district", (req, res) => {
     });
   }
 
-  // Check if the district name or district code already exists
+  // Check if the district already exists
   let district = bank.districts.find(
     (d) => d.districtCode === districtCode || d.name === districtName
   );
@@ -367,7 +395,7 @@ app.post("/add-district", (req, res) => {
     });
   }
 
-  // Create a new district since it does not exist
+  // Create a new district
   district = {
     name: districtName,
     districtCode,
@@ -375,15 +403,37 @@ app.post("/add-district", (req, res) => {
   };
   bank.districts.push(district);
 
-  // Check if the branch code or routing number already exists within the district
-  const existingBranch = district.branches.find(
-    (b) => b.branchCode === branchCode || b.routingNumber === routingNumber
+  // Check if the branch already exists in the district
+  const existingBranchByCode = district.branches.find(
+    (b) => b.branchCode === branchCode
   );
 
-  if (existingBranch) {
+  if (existingBranchByCode) {
     return res.status(400).json({
       status: "error",
-      message: "Branch with this branch code or routing number already exists",
+      message: "Branch with this branch code already exists",
+    });
+  }
+
+  const existingBranchByName = district.branches.find(
+    (b) => b.name === branchName
+  );
+
+  if (existingBranchByName) {
+    return res.status(400).json({
+      status: "error",
+      message: "Branch with this name already exists",
+    });
+  }
+
+  const existingRoutingNumber = district.branches.find(
+    (b) => b.routingNumber === routingNumber
+  );
+
+  if (existingRoutingNumber) {
+    return res.status(400).json({
+      status: "error",
+      message: "Branch with this routing number already exists",
     });
   }
 
@@ -394,6 +444,14 @@ app.post("/add-district", (req, res) => {
     routingNumber,
   };
   district.branches.push(newBranch);
+
+  // Save the updated BankData back to the JavaScript file
+  const updatedBankData = `module.exports = ${JSON.stringify(
+    BankData,
+    null,
+    2
+  )};`;
+  fs.writeFileSync(BankDataPath, updatedBankData);
 
   return res.status(201).json({
     status: "success",
@@ -433,13 +491,11 @@ app.post("/add-branch", (req, res) => {
   let district = bank.districts.find((d) => d.districtCode === districtCode);
 
   if (!district) {
-    // If district does not exist, create a new one
-    district = {
-      name: req.body.districtName,
-      districtCode,
-      branches: [],
-    };
-    bank.districts.push(district);
+    // If district does not exist, return an error
+    return res.status(404).json({
+      status: "error",
+      message: "District not found. Please create the district first.",
+    });
   }
 
   // Check for duplicate branch name within the district
@@ -464,15 +520,17 @@ app.post("/add-branch", (req, res) => {
     });
   }
 
-  // Check for duplicate routing number
-  const existingRoutingNumber = district.branches.find(
-    (b) => b.routingNumber === routingNumber
+  // Check if the routing number is unique across all branches
+  const existingRoutingNumber = BankData.banks.some((bank) =>
+    bank.districts.some((district) =>
+      district.branches.some((branch) => branch.routingNumber === routingNumber)
+    )
   );
 
   if (existingRoutingNumber) {
     return res.status(400).json({
       status: "error",
-      message: "Branch with this routing number already exists in the district",
+      message: "Branch with this routing number already exists",
     });
   }
 
@@ -485,12 +543,21 @@ app.post("/add-branch", (req, res) => {
 
   district.branches.push(newBranch);
 
+  // Save the updated BankData back to the JavaScript file
+  const updatedBankData = `module.exports = ${JSON.stringify(
+    BankData,
+    null,
+    2
+  )};`;
+  fs.writeFileSync(BankDataPath, updatedBankData);
+
   return res.status(201).json({
     status: "success",
     message: "Branch added successfully",
     data: newBranch,
   });
 });
+
 app.delete("/delete-bank", (req, res) => {
   const { bankCode } = req.query;
 
