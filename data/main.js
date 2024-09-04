@@ -1,4 +1,4 @@
-const BankData = {
+module.exports = {
   banks: [
     {
       name: "STANDARD CHARTERED BANK",
@@ -218,8 +218,5 @@ const BankData = {
         },
       ],
     },
-    // ... more banks
   ],
 };
-
-module.exports = BankData;
