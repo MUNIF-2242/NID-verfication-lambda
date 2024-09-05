@@ -1,47 +1,61 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { useLocation } from "react-router-dom";
 
 const BranchReport = () => {
   const [banks, setBanks] = useState([]);
   const [districts, setDistricts] = useState([]);
   const [filteredBranches, setFilteredBranches] = useState([]);
   const [selectedBank, setSelectedBank] = useState("");
-  const [selectedDistrict, setSelectedDistrict] = useState("");
+  const [selectedDistrict, setSelectedDistrict] = useState("all");
   const [editBranchCode, setEditBranchCode] = useState(null);
   const [editableBranch, setEditableBranch] = useState(null);
 
+  const location = useLocation();
+  const query = new URLSearchParams(location.search);
+  const bankCode = query.get("bankCode"); // Extract bankCode from query parameters
+
   useEffect(() => {
+    if (bankCode) {
+      // Fetch bank details based on bankCode
+      axios
+        .get("http://localhost:3000/get-bank-details")
+        .then((response) => {
+          const bankData = response.data.data.banks;
+          setBanks(bankData);
+          setSelectedBank(bankCode);
+          fetchBankDetails(bankCode); // Fetch details immediately on page load
+        })
+        .catch((error) => console.error("Error fetching banks:", error));
+    }
+  }, [bankCode]);
+
+  useEffect(() => {
+    if (selectedBank) {
+      fetchBankDetails(selectedBank); // Fetch bank details whenever selectedBank changes
+    }
+  }, [selectedBank]);
+
+  const fetchBankDetails = (bankCode) => {
     axios
-      .get("http://localhost:3000/get-bank-details")
+      .get(`http://localhost:3000/get-bank-details?bankCode=${bankCode}`)
       .then((response) => {
-        const bankData = response.data.data.banks;
-        setBanks(bankData);
+        const bank = response.data.data.bank;
+        setDistricts(bank.districts);
+        handleSearchBranches(); // Fetch branches after districts are set
       })
-      .catch((error) => console.error("Error fetching banks:", error));
-  }, []);
+      .catch((error) => console.error("Error fetching bank details:", error));
+  };
 
   const handleBankChange = (e) => {
     const bankCode = e.target.value;
     setSelectedBank(bankCode);
-    setSelectedDistrict("");
+    setSelectedDistrict("all");
     setFilteredBranches([]);
-
-    if (bankCode) {
-      axios
-        .get(`http://localhost:3000/get-bank-details?bankCode=${bankCode}`)
-        .then((response) => {
-          const bank = response.data.data.bank;
-          setDistricts(bank.districts);
-        })
-        .catch((error) => console.error("Error fetching bank details:", error));
-    } else {
-      setDistricts([]);
-    }
   };
 
   const handleDistrictChange = (e) => {
-    const districtCode = e.target.value;
-    setSelectedDistrict(districtCode);
+    setSelectedDistrict(e.target.value);
   };
 
   const handleSearchBranches = () => {
@@ -52,7 +66,7 @@ const BranchReport = () => {
           const bank = response.data.data.bank;
           let filteredBranchesData;
 
-          if (selectedDistrict === "all" || !selectedDistrict) {
+          if (selectedDistrict === "all") {
             filteredBranchesData = bank.districts.flatMap((district) =>
               district.branches.map((branch) => ({
                 ...branch,
@@ -87,7 +101,7 @@ const BranchReport = () => {
   const handleDelete = (branch) => {
     const { bankCode, districtCode, branchCode } = branch;
     axios
-      .delete(`http://localhost:3000/delete-branch`, {
+      .delete("http://localhost:3000/delete-branch", {
         params: { bankCode, districtCode, branchCode },
       })
       .then((response) => {
@@ -160,7 +174,6 @@ const BranchReport = () => {
         <div>
           <label>District:</label>
           <select value={selectedDistrict} onChange={handleDistrictChange}>
-            <option value="">Select District</option>
             <option value="all">All</option>
             {districts.map((district) => (
               <option key={district.districtCode} value={district.districtCode}>
@@ -169,10 +182,11 @@ const BranchReport = () => {
             ))}
           </select>
         </div>
-        <button type="button" onClick={handleSearchBranches}>
-          Search Branches
-        </button>
       </form>
+
+      <button type="button" onClick={handleSearchBranches}>
+        Search Branches
+      </button>
 
       {filteredBranches.length > 0 && (
         <div>

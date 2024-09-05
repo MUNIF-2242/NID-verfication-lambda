@@ -219,29 +219,14 @@ app.get("/get-bank-details", (req, res) => {
   }
 });
 ///
-app.post("/add-bank-data", (req, res) => {
-  const {
-    bankName,
-    bankCode,
-    districtName,
-    districtCode,
-    branchName,
-    branchCode,
-    routingNumber,
-  } = req.body;
 
-  if (
-    !bankName ||
-    !bankCode ||
-    !districtName ||
-    !districtCode ||
-    !branchName ||
-    !branchCode ||
-    !routingNumber
-  ) {
+app.post("/add-bank", (req, res) => {
+  const { bankName, bankCode } = req.body;
+
+  if (!bankName || !bankCode) {
     return res.status(400).json({
       status: "error",
-      message: "All fields are required",
+      message: "Bank name and code are required",
     });
   }
 
@@ -265,85 +250,34 @@ app.post("/add-bank-data", (req, res) => {
     }
   }
 
-  // Check if the routing number is unique across all branches
-  let existingRoutingNumber = BankData.banks.some((bank) =>
-    bank.districts.some((district) =>
-      district.branches.some((branch) => branch.routingNumber === routingNumber)
-    )
-  );
+  // If bank doesn't exist, create it
+  if (!existingBank) {
+    const bank = {
+      name: bankName,
+      bankCode,
+      districts: [], // Initialize with an empty array for districts
+    };
+    BankData.banks.push(bank);
 
-  if (existingRoutingNumber) {
-    return res.status(400).json({
-      status: "error",
-      message: "A branch with this routing number already exists",
+    // Save the updated BankData back to the JavaScript file
+    const updatedBankData = `module.exports = ${JSON.stringify(
+      BankData,
+      null,
+      2
+    )};`;
+    fs.writeFileSync(BankDataPath, updatedBankData);
+
+    return res.status(201).json({
+      status: "success",
+      message: "Bank added successfully",
+      bank,
     });
   }
 
-  // If bank doesn't exist, create it
-  let bank = existingBank;
-
-  if (!existingBank) {
-    bank = {
-      name: bankName,
-      bankCode,
-      districts: [],
-    };
-    BankData.banks.push(bank);
-  }
-
-  // Check if the district exists within the bank
-  let district = bank.districts.find((d) => d.districtCode === districtCode);
-
-  if (!district) {
-    // If district does not exist, create a new one
-    district = {
-      name: districtName,
-      districtCode,
-      branches: [],
-    };
-    bank.districts.push(district);
-  }
-
-  // Check if the branch with the same code or name already exists within the district
-  let existingBranch = district.branches.find(
-    (b) => b.branchCode === branchCode || b.name === branchName
-  );
-
-  if (existingBranch) {
-    if (existingBranch.branchCode === branchCode) {
-      return res.status(400).json({
-        status: "error",
-        message: "A branch with this code already exists in the same district",
-      });
-    }
-    if (existingBranch.name === branchName) {
-      return res.status(400).json({
-        status: "error",
-        message: "A branch with this name already exists in the same district",
-      });
-    }
-  }
-
-  // Add new branch to the district only after all checks
-  const newBranch = {
-    name: branchName,
-    branchCode,
-    routingNumber,
-  };
-  district.branches.push(newBranch);
-
-  // Save the updated BankData back to the JavaScript file
-  const updatedBankData = `module.exports = ${JSON.stringify(
-    BankData,
-    null,
-    2
-  )};`;
-  fs.writeFileSync(BankDataPath, updatedBankData);
-
-  return res.status(201).json({
-    status: "success",
-    message: "Bank data added successfully",
-    data: { bank },
+  // In case the bank already exists (should not reach here due to previous checks)
+  return res.status(400).json({
+    status: "error",
+    message: "Bank with this name or code already exists",
   });
 });
 
@@ -559,7 +493,7 @@ app.post("/add-branch", (req, res) => {
 });
 
 app.delete("/delete-bank", (req, res) => {
-  const { bankCode } = req.query;
+  const { bankCode } = req.body;
 
   if (!bankCode) {
     return res.status(400).json({
@@ -579,11 +513,20 @@ app.delete("/delete-bank", (req, res) => {
 
   BankData.banks.splice(bankIndex, 1);
 
+  // Save the updated BankData back to the JavaScript file
+  const updatedBankData = `module.exports = ${JSON.stringify(
+    BankData,
+    null,
+    2
+  )};`;
+  fs.writeFileSync(BankDataPath, updatedBankData);
+
   return res.status(200).json({
     status: "success",
     message: "Bank deleted successfully",
   });
 });
+
 app.delete("/delete-district", (req, res) => {
   const { bankCode, districtCode } = req.query;
 
@@ -704,12 +647,21 @@ app.put("/update-bank", (req, res) => {
   // Update the bank name
   bank.name = newName;
 
+  // Save the updated BankData back to the JavaScript file
+  const updatedBankData = `module.exports = ${JSON.stringify(
+    BankData,
+    null,
+    2
+  )};`;
+  fs.writeFileSync(BankDataPath, updatedBankData);
+
   return res.status(200).json({
     status: "success",
     message: "Bank updated successfully",
     data: { bank },
   });
 });
+
 app.put("/update-district", (req, res) => {
   const { bankCode, districtCode, newName } = req.body;
 

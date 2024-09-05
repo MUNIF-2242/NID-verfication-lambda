@@ -1,0 +1,20 @@
+/* src/pages/BankInfo.css */
+.bank-info-container {
+  display: flex;
+  justify-content: space-between;
+  padding: 20px;
+}
+
+.add-bank,
+.bank-report {
+  flex: 1;
+  margin: 0 10px;
+}
+
+.add-bank {
+  max-width: 400px; /* Adjust width as needed */
+}
+
+.bank-report {
+  max-width: 800px; /* Adjust width as needed */
+}
