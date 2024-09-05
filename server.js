@@ -621,6 +621,7 @@ app.delete("/delete-district", (req, res) => {
     message: "District deleted successfully",
   });
 });
+
 app.delete("/delete-branch", (req, res) => {
   const { bankCode, districtCode, branchCode } = req.query;
 
@@ -631,6 +632,7 @@ app.delete("/delete-branch", (req, res) => {
     });
   }
 
+  // Find the bank
   const bank = BankData.banks.find((b) => b.bankCode === bankCode);
 
   if (!bank) {
@@ -640,6 +642,7 @@ app.delete("/delete-branch", (req, res) => {
     });
   }
 
+  // Find the district
   const district = bank.districts.find((d) => d.districtCode === districtCode);
 
   if (!district) {
@@ -649,6 +652,7 @@ app.delete("/delete-branch", (req, res) => {
     });
   }
 
+  // Find the branch
   const branchIndex = district.branches.findIndex(
     (b) => b.branchCode === branchCode
   );
@@ -660,13 +664,23 @@ app.delete("/delete-branch", (req, res) => {
     });
   }
 
+  // Remove the branch
   district.branches.splice(branchIndex, 1);
+
+  // Save the updated BankData back to the JavaScript file
+  const updatedBankData = `module.exports = ${JSON.stringify(
+    BankData,
+    null,
+    2
+  )};`;
+  fs.writeFileSync(BankDataPath, updatedBankData);
 
   return res.status(200).json({
     status: "success",
     message: "Branch deleted successfully",
   });
 });
+
 app.put("/update-bank", (req, res) => {
   const { bankCode, newName } = req.body;
 
@@ -735,6 +749,7 @@ app.put("/update-district", (req, res) => {
     data: { bank },
   });
 });
+
 app.put("/update-branch", (req, res) => {
   const { bankCode, districtCode, branchCode, newName, newRoutingNumber } =
     req.body;
@@ -783,9 +798,46 @@ app.put("/update-branch", (req, res) => {
     });
   }
 
+  // Check if the new routing number already exists in any branch
+  const routingNumberExists = BankData.banks.some((b) =>
+    b.districts.some((d) =>
+      d.branches.some(
+        (br) =>
+          br.routingNumber === newRoutingNumber && br.branchCode !== branchCode
+      )
+    )
+  );
+
+  if (routingNumberExists) {
+    return res.status(400).json({
+      status: "error",
+      message: "Routing number already exists for another branch",
+    });
+  }
+
+  // Check if the new branch name already exists in the district
+  const branchNameExists = district.branches.some(
+    (b) => b.name === newName && b.branchCode !== branchCode
+  );
+
+  if (branchNameExists) {
+    return res.status(400).json({
+      status: "error",
+      message: "Branch name already exists in this district",
+    });
+  }
+
   // Update branch details
   branch.name = newName;
   branch.routingNumber = newRoutingNumber;
+
+  // Save the updated BankData back to the JavaScript file
+  const updatedBankData = `module.exports = ${JSON.stringify(
+    BankData,
+    null,
+    2
+  )};`;
+  fs.writeFileSync(BankDataPath, updatedBankData);
 
   return res.status(200).json({
     status: "success",

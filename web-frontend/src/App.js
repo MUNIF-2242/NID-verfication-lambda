@@ -7,8 +7,8 @@ import BranchReport from "./pages/BranchReport";
 const App = () => {
   return (
     <div className="flex-container">
-      <BankDetails />
-      <AddBank />
+      {/* <BankDetails />
+      <AddBank /> */}
       <BranchReport />
     </div>
   );
