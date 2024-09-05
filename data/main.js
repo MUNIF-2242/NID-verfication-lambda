@@ -207,8 +207,18 @@ module.exports = {
               "name": "SYLHET",
               "branchCode": "355",
               "routingNumber": "110913553"
+            },
+            {
+              "name": "2222222222",
+              "branchCode": "22222",
+              "routingNumber": "22222"
             }
           ]
+        },
+        {
+          "name": "THAKURGAON",
+          "districtCode": "94",
+          "branches": []
         }
       ]
     }

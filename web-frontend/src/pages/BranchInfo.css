@@ -1,20 +1,19 @@
 /* src/pages/BankInfo.css */
-.bank-info-container {
+.branch-info-container {
   display: flex;
   justify-content: space-between;
   padding: 20px;
 }
 
-.add-bank,
-.bank-report {
+.add-branch .branch-report {
   flex: 1;
   margin: 0 10px;
 }
 
-.add-bank {
+.add-branch {
   max-width: 400px; /* Adjust width as needed */
 }
 
-.bank-report {
+.branch-report {
   /* max-width: 800px;  */
 }

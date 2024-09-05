@@ -21,7 +21,7 @@ const BankReportPage = () => {
 
   const handleDetailsClick = (bankCode) => {
     // Redirect to the Branch Report page with the bankCode as a query parameter
-    navigate(`/branch-report?bankCode=${bankCode}`);
+    navigate(`/branch-info?bankCode=${bankCode}`);
   };
 
   const handleEditClick = (bank) => {
@@ -105,9 +105,6 @@ const BankReportPage = () => {
                 <td>{numDistricts}</td>
                 <td>{numBranches}</td>
                 <td>
-                  <button onClick={() => handleDetailsClick(bank.bankCode)}>
-                    Details
-                  </button>
                   {editingBank?.bankCode === bank.bankCode ? (
                     <>
                       <button onClick={handleSaveEdit}>Save</button>
@@ -125,6 +122,9 @@ const BankReportPage = () => {
                       </button>
                     </>
                   )}
+                  <button onClick={() => handleDetailsClick(bank.bankCode)}>
+                    Details
+                  </button>
                 </td>
               </tr>
             );
