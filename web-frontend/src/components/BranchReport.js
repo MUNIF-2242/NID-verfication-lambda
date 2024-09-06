@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 const BranchReport = () => {
   const [banks, setBanks] = useState([]);
@@ -12,90 +12,95 @@ const BranchReport = () => {
   const [editableBranch, setEditableBranch] = useState(null);
 
   const location = useLocation();
+  const navigate = useNavigate();
   const query = new URLSearchParams(location.search);
-  const bankCode = query.get("bankCode"); // Extract bankCode from query parameters
+  const bankCode = query.get("bankCode");
 
+  // Fetch banks and set selected bank from URL
   useEffect(() => {
-    if (bankCode) {
-      // Fetch bank details based on bankCode
-      axios
-        .get("http://localhost:3000/get-bank-details")
-        .then((response) => {
-          const bankData = response.data.data.banks;
-          setBanks(bankData);
+    axios
+      .get("http://localhost:3000/get-bank-details")
+      .then((response) => {
+        const bankData = response.data.data.banks;
+        setBanks(bankData);
+
+        if (bankCode) {
           setSelectedBank(bankCode);
-          fetchBankDetails(bankCode); // Fetch details immediately on page load
-        })
-        .catch((error) => console.error("Error fetching banks:", error));
-    }
+          fetchBankDetails(bankCode);
+        }
+      })
+      .catch((error) => console.error("Error fetching banks:", error));
   }, [bankCode]);
 
+  // Fetch details when selectedBank or selectedDistrict changes
   useEffect(() => {
     if (selectedBank) {
-      fetchBankDetails(selectedBank); // Fetch bank details whenever selectedBank changes
+      fetchBankDetails(selectedBank);
     }
-  }, [selectedBank]);
+  }, [selectedBank, selectedDistrict]);
 
+  // Fetch bank details and districts
   const fetchBankDetails = (bankCode) => {
     axios
       .get(`http://localhost:3000/get-bank-details?bankCode=${bankCode}`)
       .then((response) => {
         const bank = response.data.data.bank;
         setDistricts(bank.districts);
-        handleSearchBranches(); // Fetch branches after districts are set
+        handleSearchBranches(bank);
       })
       .catch((error) => console.error("Error fetching bank details:", error));
   };
 
+  // Update filtered branches based on selected district
+  const handleSearchBranches = (bank) => {
+    let filteredBranchesData;
+    if (selectedDistrict === "all") {
+      filteredBranchesData = bank.districts.flatMap((district) =>
+        district.branches.map((branch) => ({
+          ...branch,
+          bankName: bank.name,
+          bankCode: bank.bankCode,
+          districtName: district.name,
+          districtCode: district.districtCode,
+          routingNumber: branch.routingNumber || "N/A",
+        }))
+      );
+    } else {
+      const selectedDistrictData = bank.districts.find(
+        (district) => district.districtCode === selectedDistrict
+      );
+      filteredBranchesData =
+        selectedDistrictData?.branches.map((branch) => ({
+          ...branch,
+          bankName: bank.name,
+          bankCode: bank.bankCode,
+          districtName: selectedDistrictData.name,
+          districtCode: selectedDistrictData.districtCode,
+          routingNumber: branch.routingNumber || "N/A",
+        })) || [];
+    }
+    setFilteredBranches(filteredBranchesData);
+  };
+
+  // Handle bank selection and update URL
   const handleBankChange = (e) => {
     const bankCode = e.target.value;
     setSelectedBank(bankCode);
     setSelectedDistrict("all");
-    setFilteredBranches([]);
+
+    // Update URL with bankCode
+    const updatedQuery = new URLSearchParams(location.search);
+    if (bankCode) {
+      updatedQuery.set("bankCode", bankCode);
+    } else {
+      updatedQuery.delete("bankCode");
+    }
+    navigate({ search: updatedQuery.toString() }, { replace: true });
   };
 
+  // Handle district change
   const handleDistrictChange = (e) => {
     setSelectedDistrict(e.target.value);
-  };
-
-  const handleSearchBranches = () => {
-    if (selectedBank) {
-      axios
-        .get(`http://localhost:3000/get-bank-details?bankCode=${selectedBank}`)
-        .then((response) => {
-          const bank = response.data.data.bank;
-          let filteredBranchesData;
-
-          if (selectedDistrict === "all") {
-            filteredBranchesData = bank.districts.flatMap((district) =>
-              district.branches.map((branch) => ({
-                ...branch,
-                bankName: bank.name,
-                bankCode: bank.bankCode,
-                districtName: district.name,
-                districtCode: district.districtCode,
-                routingNumber: branch.routingNumber || "N/A",
-              }))
-            );
-          } else {
-            const selectedDistrictData = bank.districts.find(
-              (district) => district.districtCode === selectedDistrict
-            );
-            filteredBranchesData =
-              selectedDistrictData?.branches.map((branch) => ({
-                ...branch,
-                bankName: bank.name,
-                bankCode: bank.bankCode,
-                districtName: selectedDistrictData.name,
-                districtCode: selectedDistrictData.districtCode,
-                routingNumber: branch.routingNumber || "N/A",
-              })) || [];
-          }
-
-          setFilteredBranches(filteredBranchesData);
-        })
-        .catch((error) => console.error("Error fetching branches:", error));
-    }
   };
 
   const handleDelete = (branch) => {
@@ -107,7 +112,7 @@ const BranchReport = () => {
       .then((response) => {
         if (response.data.status === "success") {
           setFilteredBranches(
-            filteredBranches.filter((b) => b.branchCode !== branchCode)
+            filteredBranches.filter((b) => b.branchCode !== branch.branchCode)
           );
         }
       })
@@ -183,10 +188,6 @@ const BranchReport = () => {
           </select>
         </div>
       </form>
-
-      <button type="button" onClick={handleSearchBranches}>
-        Search Branches
-      </button>
 
       {filteredBranches.length > 0 && (
         <div>

@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { useLocation, useParams } from "react-router-dom";
 
 const AddBranch = () => {
+  const location = useLocation();
+  const query = new URLSearchParams(location.search);
+  const bankCode = query.get("bankCode"); // Extract bankCode from query parameters
   const [formData, setFormData] = useState({
-    bankCode: "",
     districtCode: "",
     branchName: "",
     branchCode: "",
@@ -38,12 +41,18 @@ const AddBranch = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log(formData);
+
+    const dataToSubmit = {
+      ...formData,
+      bankCode, // Include bankCode from the URL parameter
+    };
+
+    console.log(dataToSubmit);
     try {
       // Submit branch data
       const response = await axios.post(
         "http://localhost:3000/add-branch",
-        formData
+        dataToSubmit
       );
 
       console.log("Response:", response.data);
@@ -68,13 +77,7 @@ const AddBranch = () => {
     <div>
       <form onSubmit={handleSubmit}>
         <h2>Add Branch</h2>
-        <input
-          type="text"
-          name="bankCode"
-          placeholder="Bank Code"
-          value={formData.bankCode}
-          onChange={handleChange}
-        />
+        {/* Bank Code is not displayed anymore, it's taken from the URL */}
         <select
           name="districtCode"
           value={formData.districtCode}
