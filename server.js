@@ -408,11 +408,24 @@ app.post("/add-branch", (req, res) => {
       district.branches.some((branch) => branch.routingNumber === routingNumber)
     )
   );
-
   if (existingRoutingNumber) {
     return res.status(400).json({
       status: "error",
       message: "Branch with this routing number already exists",
+    });
+  }
+
+  // Check if the routing number is unique across all branches
+  const existingBranchCodeInallDistrict = BankData.banks.some((bank) =>
+    bank.districts.some((district) =>
+      district.branches.some((branch) => branch.branchCode === branchCode)
+    )
+  );
+
+  if (existingBranchCodeInallDistrict) {
+    return res.status(400).json({
+      status: "error",
+      message: "Branch code already exists",
     });
   }
 
