@@ -4,7 +4,7 @@ const AWS = require("aws-sdk");
 require("dotenv").config(); // Ensure environment variables are loaded
 
 const app = express();
-const port = 3000;
+const port = 5001;
 
 const cors = require("cors");
 app.use(cors());
@@ -559,6 +559,16 @@ app.delete("/delete-branch", (req, res) => {
 
   // Remove the branch
   district.branches.splice(branchIndex, 1);
+
+  // Remove the district if it has no branches left
+  if (district.branches.length === 0) {
+    const districtIndex = bank.districts.findIndex(
+      (d) => d.districtCode === districtCode
+    );
+    if (districtIndex !== -1) {
+      bank.districts.splice(districtIndex, 1);
+    }
+  }
 
   // Save the updated BankData back to the JavaScript file
   const updatedBankData = `module.exports = ${JSON.stringify(
