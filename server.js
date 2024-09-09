@@ -587,6 +587,7 @@ app.delete("/delete-branch", (req, res) => {
 app.put("/update-bank", (req, res) => {
   const { bankCode, newName } = req.body;
 
+  // Validate if bankCode and newName are provided
   if (!bankCode || !newName) {
     return res.status(400).json({
       status: "error",
@@ -594,13 +595,27 @@ app.put("/update-bank", (req, res) => {
     });
   }
 
-  // Find the bank
+  // Find the bank to be updated by bankCode
   const bank = BankData.banks.find((b) => b.bankCode === bankCode);
 
+  // Check if bank exists
   if (!bank) {
     return res.status(404).json({
       status: "error",
       message: "Bank not found",
+    });
+  }
+
+  // Check if any other bank already has the same name
+  const isNameTaken = BankData.banks.some(
+    (b) =>
+      b.name.toLowerCase() === newName.toLowerCase() && b.bankCode !== bankCode
+  );
+
+  if (isNameTaken) {
+    return res.status(400).json({
+      status: "error",
+      message: "A bank with the same name already exists",
     });
   }
 
@@ -613,6 +628,7 @@ app.put("/update-bank", (req, res) => {
     null,
     2
   )};`;
+
   fs.writeFileSync(BankDataPath, updatedBankData);
 
   return res.status(200).json({
