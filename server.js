@@ -115,7 +115,7 @@ app.post("/bank-details", async (req, res) => {
 });
 
 app.post("/extract-cheque", async (req, res) => {
-  console.log("Endpoint /detect-bank was hit.");
+  console.log("Endpoint /extract-cheque was hit.");
 
   const { fileName } = req.body;
 
@@ -133,12 +133,13 @@ app.post("/extract-cheque", async (req, res) => {
     },
   };
 
-  removeNonNumeric = (text) => {
+  // Function to remove non-numeric characters
+  const removeNonNumeric = (text) => {
     return text.replace(/\D/g, "");
   };
+
   try {
     console.log("Calling Textract to detect text...");
-    // Initialize variables and set default to null
     let routingNumber = null;
     let accountNumber = null;
 
@@ -148,14 +149,34 @@ app.post("/extract-cheque", async (req, res) => {
     // Filter blocks to get lines of text
     const lineBlocks = jsonData.filter((block) => block.BlockType === "LINE");
 
-    const lastLineBlock =
-      lineBlocks.length > 0 ? lineBlocks[lineBlocks.length - 1] : null;
+    // Sort the lines by length in descending order
+    const sortedLines = lineBlocks.sort(
+      (a, b) => b.Text.length - a.Text.length
+    );
 
-    const lastlinechunks = lastLineBlock.Text.split(" ");
-    //console.log(lastlinechunks);
+    // Find the longest line based on character length
+    let longestLineBlock = lineBlocks.reduce((longest, current) => {
+      return current.Text.length > longest.Text.length ? current : longest;
+    }, lineBlocks[0]);
 
-    routingNumber = removeNonNumeric(lastlinechunks[1]);
-    accountNumber = removeNonNumeric(lastlinechunks[2]);
+    // console.log("longestLineBlock:", longestLineBlock);
+    // Find the second longest line that contains more than 10 numbers
+    const secondLongestLineBlock = sortedLines.find((line, index) => {
+      const numericCount = removeNonNumeric(line.Text).length;
+      return index !== 0 && numericCount > 10; // Exclude the first line (longestLineBlock)
+    });
+
+    //console.log("secondLongestLineBlock:", secondLongestLineBlock);
+
+    const secondLongestLineText = secondLongestLineBlock.Text;
+
+    // Assuming the longest line contains routing and account numbers
+    const lineChunks = longestLineBlock.Text.split(" ");
+    //console.log("Longest Line Chunks:", lineChunks);
+
+    // Extract routing and account numbers
+    routingNumber = removeNonNumeric(lineChunks[1] || "");
+    accountNumber = removeNonNumeric(secondLongestLineText);
 
     // Determine success status
     const success = routingNumber !== null && accountNumber !== null;
@@ -182,6 +203,7 @@ app.post("/extract-cheque", async (req, res) => {
 });
 
 app.post("/upload-cheque", async (req, res) => {
+  console.log("caal upload");
   const { image } = req.body;
 
   if (!image) {

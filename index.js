@@ -1,84 +1,81 @@
-const BankData = require("./data/BankDataDhakaBank");
+const AWS = require("aws-sdk");
+const textract = new AWS.Textract();
 
 exports.handler = async (event) => {
-  console.log("Lambda /bank-details invoked.");
+  const { fileName } = JSON.parse(event.body);
 
-  const findBankDistrictAndBranch = (routingNumber) => {
-    if (typeof routingNumber !== "string") {
-      console.error("Invalid routingNumber type");
-      return null;
-    }
-
-    let trimmedRoutingNumber = routingNumber.slice(0, -1);
-
-    if (trimmedRoutingNumber.length < 8) {
-      console.error("Invalid trimmedRoutingNumber length");
-      return null;
-    }
-
-    const bankCode = trimmedRoutingNumber.slice(0, 3);
-    const districtCode = trimmedRoutingNumber.slice(3, 5);
-    const branchCode = trimmedRoutingNumber.slice(5);
-
-    const bank = BankData.banks.find((bank) => bank.bankCode === bankCode);
-
-    if (!bank) {
-      console.error("Bank not found");
-      return null;
-    }
-
-    const district = bank.districts.find(
-      (district) => district.districtCode === districtCode
-    );
-
-    if (!district) {
-      console.error("District not found");
-      return null;
-    }
-
-    const branch = district.branches.find(
-      (branch) => branch.branchCode === branchCode
-    );
-
-    if (!branch) {
-      console.error("Branch not found");
-      return null;
-    }
-
-    return {
-      bankName: bank.name,
-      districtName: district.name,
-      branchName: branch.name,
-      routingNumber,
-    };
-  };
-
-  const { routingNumber } = JSON.parse(event.body);
-
-  if (!routingNumber) {
-    console.log("No routing number provided.");
+  if (!fileName) {
     return {
       statusCode: 400,
-      body: JSON.stringify({ message: "No routing number provided." }),
-    };
-  }
-
-  const result = findBankDistrictAndBranch(routingNumber);
-
-  if (!result) {
-    return {
-      statusCode: 404,
       body: JSON.stringify({
-        message: "Bank information not found for the given routing number.",
+        status: "error",
+        message: "No file name provided.",
       }),
     };
   }
 
-  return {
-    statusCode: 200,
-    body: JSON.stringify({
-      status: "success",
-      bankDetails: result,
-    }),
+  const params = {
+    Document: {
+      S3Object: {
+        Bucket: process.env.YOUR_S3_BUCKET_NAME,
+        Name: fileName,
+      },
+    },
   };
+
+  const removeNonNumeric = (text) => {
+    return text.replace(/\D/g, "");
+  };
+
+  try {
+    let routingNumber = null;
+    let accountNumber = null;
+
+    const textractData = await textract.detectDocumentText(params).promise();
+    const jsonData = textractData.Blocks;
+
+    const lineBlocks = jsonData.filter((block) => block.BlockType === "LINE");
+
+    const sortedLines = lineBlocks.sort(
+      (a, b) => b.Text.length - a.Text.length
+    );
+
+    let longestLineBlock = lineBlocks.reduce((longest, current) => {
+      return current.Text.length > longest.Text.length ? current : longest;
+    }, lineBlocks[0]);
+
+    const secondLongestLineBlock = sortedLines.find((line, index) => {
+      const numericCount = removeNonNumeric(line.Text).length;
+      return index !== 0 && numericCount > 10;
+    });
+
+    const secondLongestLineText = secondLongestLineBlock.Text;
+
+    const lineChunks = longestLineBlock.Text.split(" ");
+
+    routingNumber = removeNonNumeric(lineChunks[1] || "");
+    accountNumber = removeNonNumeric(secondLongestLineText);
+
+    const success = routingNumber !== null && accountNumber !== null;
+
+    // Return the status and detected values
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        status: success ? "success" : "fail",
+        chequeExtractData: {
+          routingNumber,
+          accountNumber,
+        },
+      }),
+    };
+  } catch (error) {
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        status: "error",
+        message: "An error occurred while detecting text.",
+      }),
+    };
+  }
 };

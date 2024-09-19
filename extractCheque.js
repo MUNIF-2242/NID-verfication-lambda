@@ -2,15 +2,15 @@ const AWS = require("aws-sdk");
 const textract = new AWS.Textract();
 
 exports.handler = async (event) => {
-  console.log("Lambda /extract-cheque invoked.");
-
   const { fileName } = JSON.parse(event.body);
 
   if (!fileName) {
-    console.log("No fileName provided.");
     return {
       statusCode: 400,
-      body: JSON.stringify({ message: "No file name provided." }),
+      body: JSON.stringify({
+        status: "error",
+        message: "No file name provided.",
+      }),
     };
   }
 
@@ -28,8 +28,6 @@ exports.handler = async (event) => {
   };
 
   try {
-    console.log("Calling Textract to detect text...");
-
     let routingNumber = null;
     let accountNumber = null;
 
@@ -38,21 +36,29 @@ exports.handler = async (event) => {
 
     const lineBlocks = jsonData.filter((block) => block.BlockType === "LINE");
 
-    const lastLineBlock =
-      lineBlocks.length > 0 ? lineBlocks[lineBlocks.length - 1] : null;
+    const sortedLines = lineBlocks.sort(
+      (a, b) => b.Text.length - a.Text.length
+    );
 
-    if (lastLineBlock) {
-      const lastlinechunks = lastLineBlock.Text.split(" ");
-      routingNumber = removeNonNumeric(lastlinechunks[1]);
-      accountNumber = removeNonNumeric(lastlinechunks[2]);
-    }
+    let longestLineBlock = lineBlocks.reduce((longest, current) => {
+      return current.Text.length > longest.Text.length ? current : longest;
+    }, lineBlocks[0]);
+
+    const secondLongestLineBlock = sortedLines.find((line, index) => {
+      const numericCount = removeNonNumeric(line.Text).length;
+      return index !== 0 && numericCount > 10;
+    });
+
+    const secondLongestLineText = secondLongestLineBlock.Text;
+
+    const lineChunks = longestLineBlock.Text.split(" ");
+
+    routingNumber = removeNonNumeric(lineChunks[1] || "");
+    accountNumber = removeNonNumeric(secondLongestLineText);
 
     const success = routingNumber !== null && accountNumber !== null;
 
-    if (!success) {
-      console.log("Failed to detect one or more fields.");
-    }
-
+    // Return the status and detected values
     return {
       statusCode: 200,
       body: JSON.stringify({
@@ -64,7 +70,6 @@ exports.handler = async (event) => {
       }),
     };
   } catch (error) {
-    console.error("Error occurred while detecting text:", error);
     return {
       statusCode: 500,
       body: JSON.stringify({
