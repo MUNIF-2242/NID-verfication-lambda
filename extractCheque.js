@@ -23,6 +23,7 @@ exports.handler = async (event) => {
     },
   };
 
+  // Function to remove non-numeric characters
   const removeNonNumeric = (text) => {
     return text.replace(/\D/g, "");
   };
@@ -31,31 +32,52 @@ exports.handler = async (event) => {
     let routingNumber = null;
     let accountNumber = null;
 
+    // Call Textract to detect document text
     const textractData = await textract.detectDocumentText(params).promise();
     const jsonData = textractData.Blocks;
 
+    // Filter blocks to get lines of text
     const lineBlocks = jsonData.filter((block) => block.BlockType === "LINE");
 
-    const sortedLines = lineBlocks.sort(
-      (a, b) => b.Text.length - a.Text.length
-    );
+    let longestLineBlock = null;
+    let secondLongestLineBlock = null;
+    for (const lineBlock of lineBlocks) {
+      const numericCount = removeNonNumeric(lineBlock.Text).length;
+      if (numericCount >= 11) {
+        if (
+          !longestLineBlock ||
+          lineBlock.Text.length > longestLineBlock.Text.length
+        ) {
+          secondLongestLineBlock = longestLineBlock;
+          longestLineBlock = lineBlock;
+        } else if (
+          !secondLongestLineBlock ||
+          lineBlock.Text.length > secondLongestLineBlock.Text.length
+        ) {
+          secondLongestLineBlock = lineBlock;
+        }
+      }
+    }
 
-    let longestLineBlock = lineBlocks.reduce((longest, current) => {
-      return current.Text.length > longest.Text.length ? current : longest;
-    }, lineBlocks[0]);
+    // Handle case where no valid blocks are found
+    if (!longestLineBlock || !secondLongestLineBlock) {
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          status: "fail",
+          message: "Could not detect required text fields.",
+        }),
+      };
+    }
 
-    const secondLongestLineBlock = sortedLines.find((line, index) => {
-      const numericCount = removeNonNumeric(line.Text).length;
-      return index !== 0 && numericCount > 10;
-    });
+    // Pass the longest line block text to lineChunks without modification
+    const lineChunks = longestLineBlock ? longestLineBlock.Text.split(" ") : [];
 
-    const secondLongestLineText = secondLongestLineBlock.Text;
-
-    const lineChunks = longestLineBlock.Text.split(" ");
-
+    // Extract routing and account numbers
     routingNumber = removeNonNumeric(lineChunks[1] || "");
-    accountNumber = removeNonNumeric(secondLongestLineText);
+    accountNumber = removeNonNumeric(secondLongestLineBlock.Text);
 
+    // Determine success status
     const success = routingNumber !== null && accountNumber !== null;
 
     // Return the status and detected values
@@ -70,6 +92,7 @@ exports.handler = async (event) => {
       }),
     };
   } catch (error) {
+    console.error("Error occurred while detecting text:", error);
     return {
       statusCode: 500,
       body: JSON.stringify({

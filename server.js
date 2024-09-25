@@ -145,38 +145,47 @@ app.post("/extract-cheque", async (req, res) => {
 
     const textractData = await textract.detectDocumentText(params).promise();
     const jsonData = textractData.Blocks;
+    //console.log("jsonData:", jsonData);
 
     // Filter blocks to get lines of text
     const lineBlocks = jsonData.filter((block) => block.BlockType === "LINE");
 
-    // Sort the lines by length in descending order
-    const sortedLines = lineBlocks.sort(
-      (a, b) => b.Text.length - a.Text.length
-    );
+    // Find the longest line that contains more than 11 numeric characters
+    let longestLineBlock = null;
+    let secondLongestLineBlock = null;
 
-    // Find the longest line based on character length
-    let longestLineBlock = lineBlocks.reduce((longest, current) => {
-      return current.Text.length > longest.Text.length ? current : longest;
-    }, lineBlocks[0]);
+    for (const lineBlock of lineBlocks) {
+      const numericCount = removeNonNumeric(lineBlock.Text).length;
+
+      // Check for longest line block with numeric count >= 11
+      if (numericCount >= 11) {
+        if (
+          !longestLineBlock ||
+          lineBlock.Text.length > longestLineBlock.Text.length
+        ) {
+          // Update second longest before updating longest
+          secondLongestLineBlock = longestLineBlock;
+          longestLineBlock = lineBlock;
+        } else if (
+          !secondLongestLineBlock ||
+          lineBlock.Text.length > secondLongestLineBlock.Text.length
+        ) {
+          secondLongestLineBlock = lineBlock;
+        }
+      }
+    }
 
     // console.log("longestLineBlock:", longestLineBlock);
-    // Find the second longest line that contains more than 10 numbers
-    const secondLongestLineBlock = sortedLines.find((line, index) => {
-      const numericCount = removeNonNumeric(line.Text).length;
-      return index !== 0 && numericCount > 10; // Exclude the first line (longestLineBlock)
-    });
-
-    //console.log("secondLongestLineBlock:", secondLongestLineBlock);
-
-    const secondLongestLineText = secondLongestLineBlock.Text;
+    // console.log("secondLongestLineBlock:", secondLongestLineBlock);
 
     // Assuming the longest line contains routing and account numbers
-    const lineChunks = longestLineBlock.Text.split(" ");
-    //console.log("Longest Line Chunks:", lineChunks);
+    const lineChunks = longestLineBlock ? longestLineBlock.Text.split(" ") : [];
 
     // Extract routing and account numbers
     routingNumber = removeNonNumeric(lineChunks[1] || "");
-    accountNumber = removeNonNumeric(secondLongestLineText);
+    accountNumber = secondLongestLineBlock
+      ? removeNonNumeric(secondLongestLineBlock.Text)
+      : null;
 
     // Determine success status
     const success = routingNumber !== null && accountNumber !== null;
@@ -894,7 +903,7 @@ app.post("/analyze-passport", async (req, res) => {
   }
 });
 
-// Start server
+// Start Express server on port 3000
 app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
+  console.log(`Server is running on http://localhost:${port}`);
 });
