@@ -1,20 +1,113 @@
-/* src/pages/BankInfo.css */
+/* BankInfo.css */
+
 .bank-info-container {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: center;
   padding: 20px;
+  background-color: #f9f9f9;
+  max-width: 600px;
+  margin: auto;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
-.add-bank,
-.bank-report {
-  flex: 1;
-  margin: 0 10px;
+.chatbot-simulation {
+  width: 100%;
 }
 
-.add-bank {
-  max-width: 400px; /* Adjust width as needed */
+h2 {
+  text-align: center;
+  color: #333;
 }
 
-.bank-report {
-  /* max-width: 800px;  */
+.chat-item {
+  margin: 10px 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.bot-question,
+.user-answer {
+  max-width: 75%;
+  padding: 10px;
+  border-radius: 10px;
+  margin: 5px;
+}
+
+.bot-question {
+  background-color: #e1f5fe; /* Light blue for bot questions */
+  align-self: flex-start; /* Align bot question to the left */
+  position: relative;
+}
+
+.user-answer {
+  background-color: #c8e6c9; /* Light green for user answers */
+  align-self: flex-end; /* Align user answer to the right */
+  position: relative;
+}
+
+.bot-question::after,
+.user-answer::after {
+  content: "";
+  position: absolute;
+  border-style: solid;
+}
+
+.bot-question::after {
+  border-width: 10px 10px 0 0;
+  border-color: #e1f5fe transparent transparent transparent;
+  left: 100%;
+  top: 10px;
+}
+
+.user-answer::after {
+  border-width: 10px 0 0 10px;
+  border-color: #c8e6c9 transparent transparent transparent;
+  right: 100%;
+  top: 10px;
+}
+
+.answer-input {
+  width: calc(100% - 20px);
+  padding: 10px;
+  margin-top: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+button {
+  background-color: #4caf50; /* Green background */
+  color: white;
+  padding: 10px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+button:hover {
+  background-color: #45a049; /* Darker green on hover */
+}
+
+.results {
+  margin-top: 20px;
+  padding: 10px;
+  background-color: #f1f1f1;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.results h2 {
+  margin-bottom: 10px;
+}
+
+.results ul {
+  list-style-type: none;
+  padding: 0;
+}
+
+.results li {
+  padding: 5px;
+  border-bottom: 1px solid #ccc;
 }
