@@ -1,94 +1,147 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
+const OpenAI = require("openai");
+require("dotenv").config();
 
 const app = express();
-const PORT = 5000;
+const PORT = 8080;
 
 app.use(cors());
 app.use(bodyParser.json());
 
-// Sample questions
+// Initialize OpenAI API
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Sample questions and criteria
 const questions = [
-  "What do you usually eat for breakfast, and how does it make you feel throughout the morning?",
-  "How often do you consume fruits and vegetables, and do you think your intake is adequate for your health needs?",
-  "Have you noticed any negative effects on your mood or energy levels related to your diet? If so, can you describe them?",
-  "What challenges do you face in maintaining a balanced diet, and how do these challenges affect your daily life?",
-  "If you could change one thing about your current eating habits, what would it be, and what steps would you take to make that change?",
+  {
+    question: "What is your daily intake of fruits and vegetables?",
+    criteria: [
+      "Variety of fruits and vegetables",
+      "Daily intake frequency",
+      "Portion sizes",
+      "Nutritional benefits",
+      "Personal preferences",
+    ],
+  },
+  {
+    question: "How often do you consume whole grains?",
+    criteria: [
+      "Types of whole grains",
+      "Frequency of consumption",
+      "Portion sizes",
+      "Nutritional benefits",
+      "Personal preferences",
+    ],
+  },
+  {
+    question: "What are your sources of protein?",
+    criteria: [
+      "Variety of protein sources",
+      "Quality of protein",
+      "Balance of animal vs. plant protein",
+      "Portion sizes",
+      "Nutritional benefits",
+    ],
+  },
+  {
+    question: "How do you stay hydrated?",
+    criteria: [
+      "Water intake",
+      "Other beverages",
+      "Frequency of hydration",
+      "Effects of hydration on health",
+      "Personal preferences",
+    ],
+  },
+  {
+    question: "What is your approach to healthy snacks?",
+    criteria: [
+      "Types of snacks",
+      "Frequency of snacking",
+      "Nutritional value of snacks",
+      "Portion control",
+      "Personal preferences",
+    ],
+  },
 ];
 
 app.get("/questions", (req, res) => {
-  res.json(questions);
+  const formattedQuestions = questions.map((q) => q.question);
+  res.json(formattedQuestions);
 });
 
-app.post("/submit", (req, res) => {
+app.post("/submit", async (req, res) => {
   const { answers } = req.body;
 
-  const score = answers.reduce((totalScore, answer, index) => {
-    let questionScore = 0;
+  try {
+    const evaluationResponses = await Promise.all(
+      answers.map(async (answer, index) => {
+        const response = await openai.chat.completions.create({
+          model: "gpt-3.5-turbo",
+          messages: [
+            {
+              role: "system",
+              content: `You are a helpful assistant that evaluates the quality of responses to nutrition-related questions. Provide a score from 0 to 10, a brief explanation, and reference the criteria.`,
+            },
+            {
+              role: "user",
+              content: `Evaluate the following answer for question ${
+                index + 1
+              }: "${
+                questions[index].question
+              }". The answer is: "${answer}". Criteria include: ${questions[
+                index
+              ].criteria.join(
+                ", "
+              )}. Provide a score from 0 to 10 and a brief explanation of the score.`,
+            },
+          ],
+          max_tokens: 1000,
+        });
 
-    switch (index) {
-      case 0:
-        if (answer.toLowerCase().includes("sugary cereal")) {
-          questionScore += 2;
-        } else if (
-          answer.toLowerCase().includes("oatmeal") ||
-          answer.toLowerCase().includes("eggs")
-        ) {
-          questionScore += 8;
-        }
-        break;
-      case 1:
-        if (
-          answer.toLowerCase().includes("twice a week") ||
-          answer.toLowerCase().includes("not enough")
-        ) {
-          questionScore += 2;
-        } else if (
-          answer.toLowerCase().includes("daily") ||
-          answer.toLowerCase().includes("yes")
-        ) {
-          questionScore += 8;
-        }
-        break;
-      case 2:
-        if (
-          answer.toLowerCase().includes("tired") ||
-          answer.toLowerCase().includes("irritable")
-        ) {
-          questionScore += 2;
-        } else if (
-          answer.toLowerCase().includes("good") ||
-          answer.toLowerCase().includes("energized")
-        ) {
-          questionScore += 8;
-        }
-        break;
-      case 3:
-        if (
-          answer.toLowerCase().includes("time") ||
-          answer.toLowerCase().includes("budget")
-        ) {
-          questionScore += 4;
-        }
-        break;
-      case 4:
-        if (
-          answer.toLowerCase().includes("meal prep") ||
-          answer.toLowerCase().includes("planning")
-        ) {
-          questionScore += 7;
-        } else {
-          questionScore += 3;
-        }
-        break;
-      default:
-        break;
-    }
-    return totalScore + questionScore;
-  }, 0);
+        return response.choices[0].message.content.trim();
+      })
+    );
 
-  res.json({ score });
+    // Log evaluation responses for debugging
+    console.log("Evaluation Responses:", evaluationResponses);
+
+    // Parse scores and explanations
+    let totalScore = 0;
+    const feedback = [];
+
+    evaluationResponses.forEach((evaluation) => {
+      const lines = evaluation.split("\n");
+      const scoreLine = lines[0] || ""; // Default to an empty string if undefined
+      const explanation = lines.slice(1).join("\n").trim(); // Join remaining lines as explanation
+
+      // Attempt to parse the score safely with multiple formats
+      const scoreMatch = scoreLine.match(
+        /(?:Score:|I would rate this answer a|Score is)\s*(\d+)/
+      );
+      if (scoreMatch && scoreMatch[1]) {
+        const score = parseInt(scoreMatch[1], 10);
+        totalScore += score;
+        feedback.push(explanation);
+      } else {
+        console.warn("Score not found in evaluation:", evaluation);
+        feedback.push("Score not found in evaluation.");
+      }
+    });
+
+    const maxScore = questions.length * 10; // Calculate max score dynamically
+    console.log("Feedback:", feedback);
+    console.log("Total Score:", totalScore);
+
+    res.json({ score: totalScore, maxScore, feedback });
+  } catch (error) {
+    console.error("Error during evaluation:", error);
+    res.status(500).json({ error: "An error occurred during evaluation." });
+  }
 });
 
 app.listen(PORT, () => {

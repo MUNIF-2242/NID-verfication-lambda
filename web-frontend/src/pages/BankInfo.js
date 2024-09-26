@@ -13,7 +13,7 @@ const BankInfo = () => {
   useEffect(() => {
     // Fetch questions from the API
     const fetchQuestions = async () => {
-      const response = await axios.get("http://localhost:5000/questions");
+      const response = await axios.get("http://localhost:8080/questions");
       setQuestions(response.data);
     };
     fetchQuestions();
@@ -28,7 +28,8 @@ const BankInfo = () => {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     } else {
       setCompleted(true);
-      const response = await axios.post("http://localhost:5000/submit", {
+      console.log("Submitting Answers:", newAnswers); // Log answers before submission
+      const response = await axios.post("http://localhost:8080/submit", {
         answers: newAnswers,
       });
       setScore(response.data.score);
