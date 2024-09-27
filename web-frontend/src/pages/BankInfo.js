@@ -9,6 +9,7 @@ const BankInfo = () => {
   const [score, setScore] = useState(0);
   const [currentAnswer, setCurrentAnswer] = useState("");
   const [completed, setCompleted] = useState(false);
+  const [detailedFeedback, setDetailedFeedback] = useState([]);
 
   useEffect(() => {
     // Fetch questions from the API
@@ -32,12 +33,18 @@ const BankInfo = () => {
       const response = await axios.post("http://localhost:8080/submit", {
         answers: newAnswers,
       });
-      setScore(response.data.score);
+      setScore(response.data.totalScore);
+      setDetailedFeedback(response.data.detailedFeedback); // Save detailed feedback
     }
   };
 
   return (
     <div className="bank-info-container">
+      <div className="score-column">
+        <h2>Total Score</h2>
+        <p className="total-score">{completed ? score : "0"}</p>
+      </div>
+
       <div className="chatbot-simulation">
         <h2>Nutrition Chat</h2>
 
@@ -74,20 +81,21 @@ const BankInfo = () => {
             />
             <button onClick={handleSubmitAnswer}>Submit Answer</button>
           </div>
-        ) : (
-          <div className="results">
-            <h2>Results</h2>
-            <p>Your total score: {score}</p>
-            <p>Your answers:</p>
-            <ul>
-              {answers.map((answer, index) => (
-                <li key={index}>
-                  Question {index + 1}: {answer}
-                </li>
-              ))}
-            </ul>
+        ) : null}
+      </div>
+
+      <div className="feedback-column">
+        <h2>Feedback</h2>
+        {detailedFeedback.map((item, index) => (
+          <div key={index} className="feedback-item">
+            <p>
+              <strong>{item.question}</strong> (Topic: {item.topic})<br />
+              Score: {item.score}
+              <br />
+              Feedback: {item.feedback}
+            </p>
           </div>
-        )}
+        ))}
       </div>
     </div>
   );
