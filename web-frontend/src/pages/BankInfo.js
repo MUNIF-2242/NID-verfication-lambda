@@ -38,11 +38,39 @@ const BankInfo = () => {
     }
   };
 
+  const getProgressColor = (score) => {
+    if (score >= 0 && score <= 1) return "#f44336"; // Red for score 0 (nonsensical)
+    if (score >= 2 && score <= 5) return "#ff9800"; // Orange for score 1-3 (minimal relevance)
+    if (score >= 6 && score <= 8) return "#ffeb3b"; // Yellow for score 4-6 (partial relevance)
+    return "#4caf50"; // Green for score 7-10 (mostly relevant)
+  };
+
   return (
     <div className="bank-info-container">
       <div className="score-column">
         <h2>Total Score</h2>
         <p className="total-score">{completed ? score : "0"}</p>
+        {completed && (
+          <div className="topic-scores">
+            {detailedFeedback.map((item, index) => (
+              <div key={index} className="topic-score-item">
+                <p>
+                  <strong>{item.topic}</strong>: {item.score} / 10
+                </p>
+                <div className="progress-bar">
+                  <div
+                    className="progress"
+                    style={{
+                      width: `${(item.score / 10) * 100}%`,
+                      backgroundColor: getProgressColor(item.score), // Set color based on score
+                    }}
+                  ></div>
+                </div>
+                <p>{item.summary}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="chatbot-simulation">
@@ -84,7 +112,7 @@ const BankInfo = () => {
         ) : null}
       </div>
 
-      <div className="feedback-column">
+      {/* <div className="feedback-column">
         <h2>Feedback</h2>
         {detailedFeedback.map((item, index) => (
           <div key={index} className="feedback-item">
@@ -96,7 +124,7 @@ const BankInfo = () => {
             </p>
           </div>
         ))}
-      </div>
+      </div> */}
     </div>
   );
 };

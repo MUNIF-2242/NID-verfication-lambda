@@ -90,31 +90,31 @@ app.post("/submit", async (req, res) => {
           messages: [
             {
               role: "system",
-              content: `You are a helpful assistant that evaluates the quality of responses to nutrition-related questions. Provide a score from 0 to 10, a brief explanation, and reference the criteria.Assign a score of 0 for responses that are nonsensical or completely irrelevant. Ensure the feedback is structured, highlighting completeness, relevance, detail, and clarity.`,
+              content: `You are a helpful assistant that evaluates the quality of responses to nutrition-related questions. 
+              For each response, provide a score from 0 to 10 and a brief explanation. 
+              Please follow these guidelines for scoring:
+              - Score 0 for responses that are nonsensical, irrelevant, or completely unrelated to the question.
+              - Score 1-3 for responses that are minimally relevant or show very little effort in addressing the question.
+              - Score 4-6 for partially relevant answers that show some effort but lack completeness or clarity.
+              - Score 7-10 for responses that are mostly relevant, complete, detailed, and clear.
+              Ensure that irrelevant or nonsensical responses are strictly rated 0, even if there is an attempt to respond. Additionally, provide a brief summary of the feedback in 10-15 words at the end.`,
             },
+
             {
               role: "user",
               content: `Evaluate the following answer for question ${
                 index + 1
-              }: "${
-                questions[index].question
-              }". The answer is: "${answer}". Criteria include: ${questions[
-                index
-              ].criteria.join(", ")}. ${
-                answer ? "" : "The answer is irrelevant."
-              } Provide a score from ${
-                answer ? 0 : 10
-              } to 10 and a brief explanation of the score.`,
+              }: "${questions[index].question}". The answer is: "${answer}". 
+              If the answer is nonsensical, irrelevant, or unrelated to the question, assign a score of 0. 
+              If the answer makes some sense but lacks detail or relevance, score it between 1 and 3. 
+              Provide a brief explanation of your score and reasoning, followed by a short feedback summary (10-15 words).`,
             },
           ],
-          seed: "1234567890", //is in Beta
-          max_tokens: 200,
-          temperature: 0, // Reduce randomness by setting temperature close to 0
-          top_p: 1.0, // Keeps the model deterministic
+          max_tokens: 300,
+          temperature: 0,
+          top_p: 1.0,
         });
-
-        console.log("response");
-        console.log(response);
+        console.log(response.choices[0].message);
 
         return response.choices[0].message.content.trim();
       })
@@ -123,74 +123,28 @@ app.post("/submit", async (req, res) => {
     let totalScore = 0;
     const detailedFeedback = [];
 
-    // console.log("evaluationResponses");
-    // console.log(evaluationResponses);
-
     evaluationResponses.forEach((evaluation, index) => {
       const lines = evaluation.split("\n");
       const scoreLine = lines[0] || ""; // Default to an empty string if undefined
       const explanation = lines.slice(1).join("\n").trim(); // Join remaining lines as explanation
 
-      const scoreMatch = scoreLine.match(
-        /(?:Score:|I would rate this answer a|Score is)\s*(\d+)/
-      );
+      const scoreMatch = scoreLine.match(/Score:\s*(\d+)/);
+      let score = scoreMatch ? parseInt(scoreMatch[1], 10) : 0;
 
-      let score = 0; // Default score
-
-      if (scoreMatch && scoreMatch[1]) {
-        score = parseInt(scoreMatch[1], 10);
-      }
-
-      // Check for nonsensical indicators
-      const nonsensicalIndicators = [
-        "nonsensical",
-        "doesn't make sense",
-        "irrelevant",
-        "incoherent",
-        "lack of coherence",
-        "fails or  does not address the question",
-        "low score.",
-        "illogical",
-        "incoherent",
-        "nonsensical",
-        "unrelated",
-        "random words",
-        "gibberish",
-        "confusing",
-        "meaningless",
-        "no connection",
-        "not applicable",
-        "makes no sense",
-        "wrong context",
-        "lacks relevancy",
-      ];
-      const isNonsensical = nonsensicalIndicators.some((indicator) =>
-        explanation.includes(indicator)
-      );
-
-      // If the answer is nonsensical, set score to 0
-      if (isNonsensical) {
-        score = 0;
-      }
-
-      totalScore += score; // Sum all the scores
+      totalScore += score;
       detailedFeedback.push({
         question: questions[index].question,
         topic: questions[index].topic,
         score: score,
         feedback: explanation,
+        summary: lines[lines.length - 1].trim(), // The last line should be the summary
       });
     });
 
-    const maxScore = questions.length * 10; // Calculate max score dynamically
-    const averageScore = totalScore / questions.length; // Calculate average score
+    const maxScore = questions.length * 10;
+    const averageScore = totalScore / questions.length;
 
-    // console.log("Detailed Feedback:", detailedFeedback);
-    // console.log("Total Score:", totalScore);
-    // console.log("detailedFeedback"); // Log the average score
-    // console.log(detailedFeedback); // Log the average score
-
-    res.json({ totalScore, maxScore, detailedFeedback, averageScore }); // Send average score in response
+    res.json({ totalScore, maxScore, detailedFeedback, averageScore });
   } catch (error) {
     console.error("Error during evaluation:", error);
     res.status(500).json({ error: "An error occurred during evaluation." });

@@ -165,3 +165,23 @@ button:hover {
   padding: 10px; /* Add some padding */
   margin: 10px 0; /* Space around the input */
 }
+
+.topic-scores {
+  margin-top: 20px;
+}
+
+.topic-score-item {
+  margin-bottom: 10px;
+}
+
+.progress-bar {
+  width: 100%;
+  background-color: #e0e0e0; /* Light gray background */
+  border-radius: 5px;
+  overflow: hidden; /* Clip the overflow of progress */
+}
+
+.progress {
+  height: 10px; /* Height of the progress bar */
+  transition: width 0.5s, background-color 0.5s; /* Smooth transition for width and color */
+}
